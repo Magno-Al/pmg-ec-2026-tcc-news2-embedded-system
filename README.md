@@ -16,17 +16,17 @@ trabalho.
 
 ## Organização do repositório
 O repositório está organizado, essencialmente, em 4 pastas: 
-- buildroot: Sistema Operacional responsável por rodar o sistema embarcado na borda
-- firmware: ?
-- hardware: ?
+- buildroot: To-do
+- firmware: To-do
+- hardware: To-do
 - ml: Modelos de Machine Learning, para cálculo e previsão da deterioração clínica do paciente
 
 ## Buildroot
-- X
+- To-do
 ## Firmware
-- X
+- To-do
 ## Hardware
-- X
+- To-do
 ## ML
 A metodologia parte de uma premissa central: em vez de classificar diretamente se o paciente terá ou não sepse, o modelo é responsável por **prever a evolução de valores fisiológicos** (como saturação de oxigênio e oxigenação sanguínea) e, a partir dessas previsões, calcular um **escore de alerta precoce**.
 
