@@ -24,22 +24,39 @@ class PipelineVitalsEstimatorTest : public QObject
     Q_OBJECT
 
 private slots:
-    void test_noReadingBeforeTheFirstSixtySecondWindow();
+    void test_noReadingBeforeThirtySeconds();
+    void test_cardiacReadingsAfterThirtySecondsRespiratoryOnlyAfterSixty();
     void test_heartRateMatchesPulse_data();
     void test_heartRateMatchesPulse();
     void test_oxygenSaturationFollowsLinearCalibration();
     void test_resetDiscardsTheCurrentWindow();
 };
 
-void PipelineVitalsEstimatorTest::test_noReadingBeforeTheFirstSixtySecondWindow()
+void PipelineVitalsEstimatorTest::test_noReadingBeforeThirtySeconds()
 {
     PipelineVitalsEstimator estimator;
     SyntheticPpg signal;
 
-    feed(estimator, signal, 59.0);
+    feed(estimator, signal, 29.0);
 
     QVERIFY(!estimator.heartRate());
     QVERIFY(!estimator.oxygenSaturation());
+    QVERIFY(!estimator.respiratoryRate());
+}
+
+void PipelineVitalsEstimatorTest::test_cardiacReadingsAfterThirtySecondsRespiratoryOnlyAfterSixty()
+{
+    PipelineVitalsEstimator estimator;
+    SyntheticPpg signal;
+
+    // a janela 0–30 s carrega o transitório do filtro (o DC parte de zero) e é reprovada pelo
+    // índice de perfusão; a de 5–35 s é a primeira com leitura
+    feed(estimator, signal, 36.0);
+
+    QVERIFY(estimator.heartRate());
+    QVERIFY2(std::abs(*estimator.heartRate() - 72) <= 3,
+             qPrintable(QString::number(*estimator.heartRate())));
+    QVERIFY(estimator.oxygenSaturation());
     QVERIFY(!estimator.respiratoryRate());
 }
 
@@ -87,7 +104,7 @@ void PipelineVitalsEstimatorTest::test_resetDiscardsTheCurrentWindow()
     QVERIFY(estimator.heartRate());
 
     estimator.reset();
-    feed(estimator, signal, 30.0);
+    feed(estimator, signal, 29.0);
 
     QVERIFY(!estimator.heartRate());
 }

@@ -44,8 +44,9 @@ erra menos a FR e não confunde as ondas de Mayer (~6–7 irpm) com respiração
 
 - Sem dedo, as linhas ficam em "AGUARDANDO DEDO", sem alarme. Com o dedo, as curvas de FC e
   SpO₂ passam a mostrar o PPG real e a de FR a respiração extraída do PPG.
-- FC em ~5 s, SpO₂ em ~10 s, FR em ~60 s (32 s de sinal limpo + pico espectral claro). Até
-  lá, "—".
+- Tempo até a primeira leitura com o dedo parado: no `hybrid` (padrão), FC e SpO₂ em ~35 s e FR
+  em ~40–45 s; no `processor`, FC em ~5 s e SpO₂ em ~10 s. Até lá, "—". O dedo saindo zera
+  as medidas.
 - Tirar o dedo depois de ter havido leitura gera o alarme técnico "sem contato".
 - SpO₂ sem calibração clínica: curva empírica da Maxim (RD117) no `processor`, 110 − 25·R no
   `pipeline`/`hybrid`.

@@ -14,6 +14,10 @@
 // FC e SpO₂ nos últimos 30 s e FR nos 60 s. Cada janela substitui os valores da anterior; uma
 // janela reprovada deixa o parâmetro sem leitura, como no método original.
 //
+// Diferença do main.cpp: lá a primeira saída só vem com o buffer cheio (60 s). Aqui FC e SpO₂
+// já saem com 30 s de sinal — a janela que o próprio método usa para eles —, para o monitor não
+// ficar um minuto sem números a cada vez que o dedo é recolocado. A FR continua com 60 s.
+//
 // Contato do dedo e curvas da tela continuam com o PpgProcessor: este estimador só calcula.
 class PipelineVitalsEstimator
 {
@@ -30,6 +34,7 @@ public:
 
 private:
     void evaluateWindow();
+    void evaluateCardiacWindowWhileFilling();
 
     // o sensor do app entrega a intensidade bruta do fotodetector (README do pipeline, seção 4)
     static constexpr bool IsRawIntensity = true;

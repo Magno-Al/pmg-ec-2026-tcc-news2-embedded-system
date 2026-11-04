@@ -47,9 +47,44 @@ void PipelineVitalsEstimator::addSample(const PpgSample& sample)
         m_redFilter->process(sample.red),
         m_infraredFilter->process(sample.infrared)
     };
+    const bool wasFull = ppg_buffer_is_full(m_buffer);
     if(ppg_buffer_push(m_buffer, windowSample))
     {
         evaluateWindow();
+    }
+    else if(!wasFull)
+    {
+        evaluateCardiacWindowWhileFilling();
+    }
+}
+
+void PipelineVitalsEstimator::evaluateCardiacWindowWhileFilling()
+{
+    // mesma cadência do buffer cheio: com 30 s de sinal e depois a cada 5 s, até os 60 s
+    const size_t filled = m_buffer.count;
+    if(filled < m_heartRateWindowSamples
+       || (filled - m_heartRateWindowSamples) % m_buffer.hop_samples != 0)
+    {
+        return;
+    }
+    // last_window() lê o fim do vetor, que só faz sentido com o buffer cheio; durante o
+    // enchimento a janela são as últimas amostras recebidas
+    const PPGWindowView heartRateWindow{
+        m_buffer.samples.data() + (filled - m_heartRateWindowSamples),
+        m_heartRateWindowSamples
+    };
+    const PPGQualityResult quality =
+        assess_window_quality(heartRateWindow, heartRateWindow, IsRawIntensity);
+
+    m_heartRate.reset();
+    if(quality.usable_for_hr)
+    {
+        m_heartRate = rounded(calculate_heart_rate(heartRateWindow, m_sampleRateHz).bpm);
+    }
+    m_oxygenSaturation.reset();
+    if(quality.usable_for_spo2)
+    {
+        m_oxygenSaturation = rounded(calculate_spo2(heartRateWindow));
     }
 }
 
