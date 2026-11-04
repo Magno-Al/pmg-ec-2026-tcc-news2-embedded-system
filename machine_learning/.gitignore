@@ -1,0 +1,8 @@
+# Ambiente virtual e IDE
+.venv/
+.idea/
+__pycache__/
+
+# Dados da PhysioNet (grandes demais para o GitHub, ver README)
+data/raw/
+data/formatedData/*.csv

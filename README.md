@@ -19,7 +19,7 @@ O repositório está organizado, essencialmente, em 4 pastas:
 - buildroot: To-do
 - firmware: To-do
 - hardware: To-do
-- ml: Modelos de Machine Learning, para cálculo e previsão da deterioração clínica do paciente
+- machine_learning: Modelos de Machine Learning, para cálculo e previsão da deterioração clínica do paciente
 
 ## Buildroot
 - To-do

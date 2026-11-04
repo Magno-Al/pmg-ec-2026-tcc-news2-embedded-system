@@ -3,24 +3,29 @@ Este script serve para realizar o pré-processamento de dados, para limpar e nor
 serem utilizados pelos modelos de ML
 '''
 
+from pathlib import Path
+
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import GroupShuffleSplit
 
-PATH = r"C:\Users\Pedro\Desktop\TCC\pythonProject1\data\formatedData\patientsData.csv"
-COLUMNS_TO_ANALYSE = ["Resp", "O2Sat", "SBP", "HR", "Temp"]
+PATH = Path(__file__).resolve().parent.parent / "data" / "formatedData" / "patientsData.csv"
+COLUMNS_TO_ANALYSE = ["Resp", "O2Sat", "SBP", "HR", "Temp", "FiO2"]
 VALUES_TO_ACCEPT = {
     "Resp": (4, 60),
     "O2Sat": (70, 100),
     "SBP": (60, 270),
     "HR": (20, 250),
     "Temp": (25, 45),
+    "FiO2": (0.21, 1.0),  #fração inspirada de O2: 0.21 = ar ambiente, 1.0 = O2 puro
 }
 
 FUTURE_WINDOW = 6  #janela deslizante prever se em alguma das próximas 6h, o paciente vai ser escore >=5
 PAST_WINDOW = 6  #janela deslizante que obtém os sinais vitais e escore EWS das últimas 6h
 THRESHOLD = 5  #NEWS2 >= 5 => "em risco" (métrica)
 LAGS = (1, 2, 3)  #quantidade de 'fotos' que cada linha irá armazenar das variáveis anteriores para o modelo de ML
+FIO2_FFILL_LIMIT = 4  #máximo de horas que o último registro de FiO2 é propagado; após isso, considera ar ambiente
+ROOM_AIR_FIO2 = 0.21  #FiO2 do ar ambiente, usada quando não há registro de FiO2
 
 
 class PreProcessing:
@@ -47,10 +52,17 @@ class PreProcessing:
 
         #Aplicar Forward-Fill
         #Forward-fill CAUSAL, por paciente, só propaga valores do passado para variáveis ausentes do futuro
-        df[COLUMNS_TO_ANALYSE] = df.groupby("patient_id")[COLUMNS_TO_ANALYSE].ffill()
+        #FiO2 fica de fora aqui, pois tem forward-fill com limite (abaixo)
+        vitals = [c for c in COLUMNS_TO_ANALYSE if c != "FiO2"]
+        df[vitals] = df.groupby("patient_id")[vitals].ffill()
+
+        #FiO2 é anotada de forma intermitente durante a oxigenoterapia: propaga o último registro
+        #por até FIO2_FFILL_LIMIT horas. Sem registro recente => ar ambiente
+        df["FiO2"] = df.groupby("patient_id")["FiO2"].ffill(limit=FIO2_FFILL_LIMIT)
+        df["FiO2"] = df["FiO2"].fillna(ROOM_AIR_FIO2)
 
         #LIMPA
-        #Descarta linhas que AINDA têm NaN em algum dos 5 vitais (resíduo inicial, que não foi preenchido
+        #Descarta linhas que AINDA têm NaN em algum dos vitais (resíduo inicial, que não foi preenchido
         # para evitar data leackage)
         df = df.dropna(subset=COLUMNS_TO_ANALYSE).reset_index(drop=True)
 
@@ -73,8 +85,9 @@ class PreProcessing:
         self.__dataFrame["s_sbp"] = self.__dataFrame["SBP"].apply(self.score_sbp)
         self.__dataFrame["s_hr"] = self.__dataFrame["HR"].apply(self.score_hr)
         self.__dataFrame["s_temp"] = self.__dataFrame["Temp"].apply(self.score_temp)
+        self.__dataFrame["s_o2"] = self.__dataFrame["FiO2"].apply(self.score_o2)
 
-        cols_score = ["s_resp", "s_spo2", "s_sbp", "s_hr", "s_temp"]
+        cols_score = ["s_resp", "s_spo2", "s_sbp", "s_hr", "s_temp", "s_o2"]
         self.__dataFrame["news2"] = self.__dataFrame[cols_score].sum(axis=1)
 
     def generateTarget(self, horizon=FUTURE_WINDOW, past_window=PAST_WINDOW, threshold=THRESHOLD):
@@ -146,17 +159,28 @@ class PreProcessing:
         groups = elig["patient_id"]#guardado para o split POR PACIENTE
         return X, y, groups
 
-    def splitByPatient(self, test_size=0.2, random_state=42):
+    def splitByPatient(self, test_size=0.2, val_size=0.1, random_state=42):
         X, y, groups = self.getTrainingMatrix()
 
+        #1º corte: separa o TESTE, usado apenas na avaliação final
         splitter = GroupShuffleSplit(n_splits=1, test_size=test_size,
                                      random_state=random_state)
-        train_idx, test_idx = next(splitter.split(X, y, groups))
+        rest_idx, test_idx = next(splitter.split(X, y, groups))
 
-        X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
-        y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+        #2º corte: do restante, separa a VALIDAÇÃO (early stopping, limiar, hiperparâmetros)
+        #val_size é relativo ao total, por isso é reescalado para a fração do restante
+        splitter = GroupShuffleSplit(n_splits=1, test_size=val_size / (1 - test_size),
+                                     random_state=random_state)
+        tr, va = next(splitter.split(X.iloc[rest_idx], y.iloc[rest_idx], groups.iloc[rest_idx]))
+        train_idx, val_idx = rest_idx[tr], rest_idx[va]
 
-        return X_train, X_test, y_train, y_test
+        X_train, X_val, X_test = X.iloc[train_idx], X.iloc[val_idx], X.iloc[test_idx]
+        y_train, y_val, y_test = y.iloc[train_idx], y.iloc[val_idx], y.iloc[test_idx]
+
+        print(f"Pacientes: treino={groups.iloc[train_idx].nunique()} | "
+              f"validação={groups.iloc[val_idx].nunique()} | teste={groups.iloc[test_idx].nunique()}")
+
+        return X_train, X_val, X_test, y_train, y_val, y_test
 
     def score_resp(self, rr):  # Frequência respiratória (irpm)
         if pd.isna(rr):
@@ -220,3 +244,12 @@ class PreProcessing:
         if temp <= 39.0:
             return 1
         return 2
+
+    def score_o2(self, fio2):  # O2 suplementar (FiO2 em fração)
+        #sem registro de FiO2 (ou registro implausível, já anulado em applyPlausability)
+        #=> considera que o paciente está respirando ar ambiente
+        if pd.isna(fio2):
+            return 0
+        if fio2 > 0.21:
+            return 2
+        return 0
