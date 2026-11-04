@@ -124,6 +124,10 @@ qt_add_qml_module(monitor-news2
 target_include_directories(monitor-news2 PRIVATE src/app src/ui)
 target_link_libraries(monitor-news2 PRIVATE monitor_core Qt6::Gui Qt6::Quick)
 
+# exporta FC/FR do PpgProcessor no formato do ppg-pipeline, para a validação nas bases públicas
+add_executable(ppg-processor-export tools/PpgProcessorExport.cpp)
+target_link_libraries(ppg-processor-export PRIVATE monitor_core)
+
 enable_testing()
 
 function(add_monitor_test name)
