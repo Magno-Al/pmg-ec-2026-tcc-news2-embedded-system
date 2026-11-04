@@ -46,6 +46,8 @@ add_library(monitor_core STATIC
     src/core/LiveSignalBuffer.cpp
     src/core/PipelineVitalsEstimator.h
     src/core/PipelineVitalsEstimator.cpp
+    src/sensors/Ds18b20Thermometer.h
+    src/sensors/Ds18b20Thermometer.cpp
     src/devices/VitalSignsSource.h
     src/devices/AlarmIndicator.h
     src/prediction/DeteriorationPredictor.h
@@ -165,3 +167,4 @@ add_monitor_test(tst_spokennumber)
 add_monitor_test(tst_trendtracker)
 add_monitor_test(tst_ppgprocessor)
 add_monitor_test(tst_pipelinevitalsestimator)
+add_monitor_test(tst_ds18b20thermometer)

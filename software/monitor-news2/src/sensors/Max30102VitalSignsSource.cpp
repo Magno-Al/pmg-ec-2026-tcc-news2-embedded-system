@@ -27,6 +27,10 @@ Max30102VitalSignsSource::Max30102VitalSignsSource(QObject* parent)
     m_reconnectTimer.setInterval(ReconnectIntervalMilliseconds);
     m_reconnectTimer.setSingleShot(true);
     connect(&m_reconnectTimer, &QTimer::timeout, this, &Max30102VitalSignsSource::openSensor);
+    connect(
+        &m_thermometer, &Ds18b20Thermometer::temperatureMeasured,
+        this, &VitalSignsSource::temperatureMeasured
+    );
 }
 
 void Max30102VitalSignsSource::start()
@@ -37,6 +41,7 @@ void Max30102VitalSignsSource::start()
         .configure(PpgProcessor::RespirationSampleRateHz);
     emit fingerContactChanged(false);
     m_publishTimer.start();
+    m_thermometer.start();
     openSensor();
 }
 

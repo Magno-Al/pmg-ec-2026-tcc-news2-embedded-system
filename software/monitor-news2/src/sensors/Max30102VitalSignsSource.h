@@ -3,6 +3,7 @@
 #include "core/PipelineVitalsEstimator.h"
 #include "core/PpgProcessor.h"
 #include "devices/VitalSignsSource.h"
+#include "sensors/Ds18b20Thermometer.h"
 
 #ifdef MONITOR_NEWS2_SENSOR_IIO
 #include "sensors/Max30102Iio.h"
@@ -24,8 +25,8 @@ using Max30102Device = Max30102;
 // igual: as curvas vão para os LiveSignalBuffer a cada amostra e FC/SpO₂/FR são publicadas
 // uma vez por segundo, com 0 quando ainda não há leitura. MONITOR_NEWS2_PPG_ALGORITHM decide
 // quem calcula: PpgProcessor, PipelineVitalsEstimator ou os dois (FC/SpO₂ do pipeline, FR do
-// PpgProcessor); o contato do dedo e as curvas são sempre do PpgProcessor. Temperatura não é
-// emitida: o DS18B20 ainda não está ligado.
+// PpgProcessor); o contato do dedo e as curvas são sempre do PpgProcessor. A temperatura vem do
+// DS18B20 (Ds18b20Thermometer), a cada 10 s, independente do dedo.
 class Max30102VitalSignsSource : public VitalSignsSource
 {
     Q_OBJECT
@@ -52,4 +53,5 @@ private:
     QTimer m_pollTimer;
     QTimer m_publishTimer;
     QTimer m_reconnectTimer;
+    Ds18b20Thermometer m_thermometer;
 };

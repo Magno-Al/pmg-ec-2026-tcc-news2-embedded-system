@@ -47,18 +47,21 @@ erra menos a FR e não confunde as ondas de Mayer (~6–7 irpm) com respiração
 - FC em ~5 s, SpO₂ em ~10 s, FR em ~60 s (32 s de sinal limpo + pico espectral claro). Até
   lá, "—".
 - Tirar o dedo depois de ter havido leitura gera o alarme técnico "sem contato".
-- SpO₂ usa a curva empírica da Maxim (RD117), sem calibração clínica. A temperatura não é
-  lida (DS18B20 ainda não montado), então o NEWS2 fica incompleto e a predição não roda.
+- SpO₂ sem calibração clínica: curva empírica da Maxim (RD117) no `processor`, 110 − 25·R no
+  `pipeline`/`hybrid`.
+- A temperatura vem do DS18B20 (1-Wire no GPIO 4, pull-up de 4,7 kΩ), lida a cada 10 s numa
+  thread própria (`Ds18b20Thermometer`). Com ela o NEWS2 fecha completo; sem o sensor, a
+  temperatura fica "—" e o NEWS2 incompleto.
 
 ## Organização
 
 | Pasta | Conteúdo |
 |---|---|
-| `src/core` | tabela NEWS2, alarme, tipos da sessão e `PpgProcessor` (FC, SpO₂ e FR do PPG) |
+| `src/core` | NEWS2, alarme, sessão, `PpgProcessor` e `PipelineVitalsEstimator` (FC, SpO₂, FR) |
 | `src/devices` | interfaces `VitalSignsSource` (MAX30102 + DS18B20) e `AlarmIndicator` (LED/buzzer) |
 | `src/prediction` | interface `DeteriorationPredictor` (XGBoost, NEWS2 ≥ 5 em 6 h) |
 | `src/mock` | implementações simuladas e os sinais de partida do leito 14-B |
-| `src/sensors` | driver I2C do MAX30102 e `Max30102VitalSignsSource` (build com hardware) |
+| `src/sensors` | MAX30102 (i2c-dev e IIO), `Max30102VitalSignsSource` e `Ds18b20Thermometer` |
 | `src/app` | `MonitorController` (view-model exposto ao QML como `Monitor`) e `PressureEntry` |
 | `src/ui` | itens C++ de desenho: curva em varredura, tendência, hachura, borda tracejada/dupla |
 | `qml` | telas: Monitoramento, Registro de PA/O₂, Evolução, Plantão, ajuda da predição |
@@ -73,6 +76,6 @@ histórico do NEWS2, a evolução e a janela de 6 h da predição. **Finalizar p
 
 ## Para integrar o restante do hardware
 
-O MAX30102 já está integrado (ver acima). Faltam implementações reais de temperatura (DS18B20,
-`temperatureMeasured`), `DeteriorationPredictor` e `AlarmIndicator`; os pontos de troca estão
-em `src/main.cpp`.
+MAX30102 e DS18B20 já estão integrados (ver acima). Faltam as implementações reais de
+`DeteriorationPredictor` (modelo XGBoost) e `AlarmIndicator` (LED e buzzer por GPIO); os pontos
+de troca estão em `src/main.cpp`.
