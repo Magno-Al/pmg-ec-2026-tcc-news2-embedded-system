@@ -1,0 +1,9 @@
+build/
+.cache/
+venv/
+debug_output/
+scripts/*.png
+__pycache__/
+
+# bases BIDMC e OpenOximetry (PhysioNet): baixadas e preparadas localmente
+data/
