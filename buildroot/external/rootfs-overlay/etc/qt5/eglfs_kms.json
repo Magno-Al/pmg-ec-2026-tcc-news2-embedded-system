@@ -1,0 +1,2 @@
+{ "device": "/dev/dri/card0",
+  "outputs": [ { "name": "HDMI1", "mode": "current" } ] }

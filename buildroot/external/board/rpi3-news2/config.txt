@@ -1,0 +1,41 @@
+# ---- firmware -----------------------------------------------------------
+arm_64bit=1
+kernel=Image
+start_file=start.elf
+fixup_file=fixup.dat
+
+# ---- video --------------------------------------------------------------
+# Full KMS: exigido pela integracao eglfs_kms do Qt (DRM + GBM).
+# cma-128 reserva 128 MB p/ os framebuffers do VC4 (1024x600x4 = 2,4 MB/buffer).
+dtoverlay=vc4-kms-v3d,cma-128
+# ATENCAO: com FULL KMS o firmware IGNORA hdmi_group/hdmi_mode/hdmi_cvt/
+# hdmi_drive. A resolucao 1024x600 vem do video= no cmdline.txt.
+gpu_mem=64
+disable_overscan=1
+disable_splash=1
+boot_delay=0
+
+# ---- UART ---------------------------------------------------------------
+# disable-bt devolve a PL011 (ttyAMA0) aos GPIOs 14/15 e tira um driver do boot.
+# Se precisar de Bluetooth, troque por: dtoverlay=miniuart-bt
+dtoverlay=disable-bt
+enable_uart=1
+
+# ---- I2C (MAX30102 @ 0x57) ---------------------------------------------
+# Fast Mode; se der erro de barramento, use 100000
+dtparam=i2c_arm=on
+dtparam=i2c_arm_baudrate=400000
+
+# ---- 1-Wire (DS18B20, GPIO 4) ------------------------------------------
+# Requer pull-up FISICO de 4,7 kOhm entre DQ e 3V3. O parametro "pullup" do
+# overlay e ignorado nos kernels atuais (overlays/README: "ignored").
+dtoverlay=w1-gpio,gpiopin=4
+
+dtparam=audio=off
+
+# ---- MAX30102 (I2C 0x57, INT no GPIO 17) ---------------------------------
+# Declara o sensor para o driver IIO. int_pin=17 e obrigatorio: o padrao do
+# overlay e o GPIO 4, o mesmo do w1-gpio acima. Sem udev, o modulo max30102
+# so carrega pelo S30max30102 (pacote monitor-news2 com acesso IIO); sem o
+# modulo, 0x57 fica livre e o acesso por i2c-dev continua funcionando.
+dtoverlay=i2c-sensor,max30102,int_pin=17

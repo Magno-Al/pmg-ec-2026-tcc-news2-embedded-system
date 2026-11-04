@@ -1,0 +1,1 @@
+root=/dev/mmcblk0p2 rootwait rootfstype=ext4 console=ttyAMA0,115200 console=tty1 video=HDMI-A-1:1024x600M@60D vt.global_cursor_default=0

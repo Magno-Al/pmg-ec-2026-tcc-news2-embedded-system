@@ -1,0 +1,272 @@
+#!/bin/sh
+# Diagnostico manual da conexao wifi (nao roda no boot). Refaz a tentativa de
+# conexao com o wpa_supplicant em modo debug e imprime um resumo para ser
+# fotografado. O wpa_supplicant fica rodando com -dd ate o proximo
+# "/etc/init.d/S35wifi restart".
+#
+# Resumo na tela; detalhes em /root/wifi-debug.log e /root/wpa_supplicant.log
+# (fora de /var/log, que e tmpfs e some no reboot).
+
+INTERFACE=wlan0
+CONFIG=/etc/wpa_supplicant.conf
+# rede a diagnosticar: argumento, ou a primeira do wpa_supplicant.conf
+TARGET_SSID=${1:-$(sed -n 's/^[[:space:]]*ssid="\(.*\)"/\1/p' "$CONFIG" 2>/dev/null | head -n 1)}
+PIDFILE=/var/run/wpa_supplicant.$INTERFACE.pid
+REPORT=/root/wifi-debug.log
+SUPPLICANT_LOG=/root/wpa_supplicant.log
+SCAN_DUMP=/tmp/wifi-scan.txt
+CONNECT_TIMEOUT_SECONDS=40
+RELEVANT_EVENTS='CTRL-EVENT-(SSID-TEMP-DISABLED|ASSOC-REJECT|AUTH-REJECT|DISCONNECTED|CONNECTED'
+RELEVANT_EVENTS="$RELEVANT_EVENTS|NETWORK-NOT-FOUND)|4-Way Handshake failed|may be incorrect"
+RELEVANT_EVENTS="$RELEVANT_EVENTS|WRONG_KEY|Trying to associate|No suitable network|skip - "
+
+say()
+{
+    echo "$*" | cut -c1-110
+    echo "$*" >> "$REPORT"
+}
+
+detail()
+{
+    echo "$*" >> "$REPORT"
+}
+
+section()
+{
+    say "---- $* ----"
+}
+
+reportHardware()
+{
+    section "HARDWARE"
+    model=$(tr -d '\0' < /proc/device-tree/model 2>/dev/null)
+    say "placa: ${model:-?} | kernel $(uname -r)"
+    if lsmod | grep -q '^brcmfmac'; then
+        say "modulo brcmfmac: carregado"
+    else
+        say "modulo brcmfmac: NAO carregado"
+    fi
+    if [ -d "/sys/class/net/$INTERFACE" ]; then
+        macAddress=$(cat "/sys/class/net/$INTERFACE/address")
+        operState=$(cat "/sys/class/net/$INTERFACE/operstate")
+        say "$INTERFACE: existe, mac $macAddress, operstate $operState"
+    else
+        say "$INTERFACE: NAO EXISTE"
+    fi
+    for rfkillDevice in /sys/class/rfkill/rfkill*; do
+        [ -d "$rfkillDevice" ] || continue
+        say "rfkill $(cat "$rfkillDevice/name"): soft=$(cat "$rfkillDevice/soft")" \
+            "hard=$(cat "$rfkillDevice/hard")"
+    done
+    dmesg | grep -i -E 'brcmf|cfg80211' >> "$REPORT"
+    dmesg | grep -i -E 'brcmf' | grep -i -E 'firmware:|error|fail|clm|nvram' \
+        | sed 's/^\[[^]]*\] //' | tail -n 4 | while read -r line; do say "dmesg: $line"; done
+    say "regdom: $(iw reg get 2>/dev/null | grep -m1 '^country' | cut -c1-60)"
+    driverOptions=$(grep -h '^options brcmfmac' /etc/modprobe.d/*.conf 2>/dev/null)
+    say "modprobe.d: ${driverOptions:-(sem options brcmfmac)}"
+}
+
+reportConfig()
+{
+    section "CONFIG ($CONFIG)"
+    if [ ! -f "$CONFIG" ]; then
+        say "ARQUIVO NAO EXISTE"
+        return
+    fi
+    networkCount=$(grep -c 'network={' "$CONFIG")
+    say "blocos network: $networkCount | country: $(grep '^country=' "$CONFIG" | cut -d= -f2)"
+    awk -v target="$TARGET_SSID" '
+        /network=\{/ { inside = 1; ssid = ""; psk = ""; keyManagement = "(padrao)"; next }
+        inside && /^[ \t]*ssid=/ { sub(/^[ \t]*ssid=/, ""); ssid = $0 }
+        inside && /^[ \t]*psk=/ { sub(/^[ \t]*psk=/, ""); psk = $0 }
+        inside && /^[ \t]*key_mgmt=/ { sub(/^[ \t]*key_mgmt=/, ""); keyManagement = $0 }
+        inside && /^[ \t]*\}/ {
+            inside = 0
+            if (psk ~ /^".*"$/) {
+                passphrase = substr(psk, 2, length(psk) - 2)
+                pskKind = "senha de " length(passphrase) " caracteres"
+                if (length(passphrase) < 8 || length(passphrase) > 63)
+                    pskKind = pskKind " (INVALIDA: 8..63)"
+                if (passphrase ~ /^ | $/) pskKind = pskKind " (ESPACO nas pontas)"
+                if (passphrase ~ /[^ -~]/) pskKind = pskKind " (caractere NAO-ASCII)"
+            } else if (psk ~ /^[0-9a-fA-F]+$/ && length(psk) == 64) {
+                pskKind = "PSK hex de 64 digitos"
+            } else if (psk == "") {
+                pskKind = "SEM psk"
+            } else {
+                pskKind = "psk em formato INVALIDO (sem aspas e nao e hex de 64)"
+            }
+            mark = (ssid == "\"" target "\"") ? "  <- alvo" : ""
+            print "ssid=" ssid " | " pskKind " | key_mgmt=" keyManagement mark
+        }
+    ' "$CONFIG" | while read -r line; do say "$line"; done
+    if grep -q "$(printf '\r')" "$CONFIG"; then
+        say "ATENCAO: arquivo com fim de linha CRLF (Windows)"
+    fi
+}
+
+scanNetworks()
+{
+    section "SCAN (iw, com o wpa_supplicant parado)"
+    stopSupplicant
+    ip link set "$INTERFACE" up 2>> "$REPORT"
+    scanAttempt=1
+    while [ "$scanAttempt" -le 3 ]; do
+        if iw dev "$INTERFACE" scan > "$SCAN_DUMP" 2>> "$REPORT"; then
+            break
+        fi
+        detail "scan tentativa $scanAttempt falhou"
+        scanAttempt=$((scanAttempt + 1))
+        sleep 2
+    done
+    cat "$SCAN_DUMP" >> "$REPORT"
+    awk '
+        function emitNetwork() {
+            if (bss == "") return
+            if (ssid == "") ssid = "<oculto>"
+            if (security == "") security = privacy ? "WEP?" : "ABERTA"
+            if (mfpRequired) security = security " PMF-obrigatorio"
+            printf "%s|%s|%s|%s|%s\n", signal, ssid, frequency, security, bss
+        }
+        /^BSS / { emitNetwork(); bss = substr($2, 1, 17); ssid = ""; frequency = ""; signal = "";
+                  security = ""; privacy = 0; mfpRequired = 0; inRsn = 0; inWpa = 0 }
+        /^\tfreq:/ { frequency = int($2) }
+        /^\tsignal:/ { signal = int($2) }
+        /^\tSSID:/ { sub(/^\tSSID: ?/, ""); ssid = $0 }
+        /^\tcapability:/ && /Privacy/ { privacy = 1 }
+        /^\tRSN:/ { inRsn = 1; inWpa = 0 }
+        /^\tWPA:/ { inWpa = 1; inRsn = 0 }
+        /^\t[^\t]/ && !/^\t(RSN|WPA):/ { inRsn = 0; inWpa = 0 }
+        /Authentication suites:/ {
+            sub(/.*Authentication suites: */, "")
+            suite = inWpa ? "WPA1:" : "RSN:"
+            security = security suite $0 " "
+        }
+        /Capabilities:/ && /MFP-required/ { mfpRequired = 1 }
+        END { emitNetwork() }
+    ' "$SCAN_DUMP" | sort -t'|' -k1,1nr > /tmp/wifi-scan-table.txt
+
+    totalNetworks=$(wc -l < /tmp/wifi-scan-table.txt)
+    say "redes vistas: $totalNetworks"
+    head -n 6 /tmp/wifi-scan-table.txt \
+        | while IFS='|' read -r signal ssid frequency security bss; do
+        say "  ${signal}dBm $(channelOf "$frequency") \"$ssid\" $security"
+    done
+
+    targetLower=$(echo "$TARGET_SSID" | tr 'A-Z' 'a-z')
+    grep -i "|[^|]*${targetLower}[^|]*|" /tmp/wifi-scan-table.txt > /tmp/wifi-scan-target.txt
+    if [ ! -s /tmp/wifi-scan-target.txt ]; then
+        say ">> \"$TARGET_SSID\" NAO apareceu no scan"
+        return
+    fi
+    while IFS='|' read -r signal ssid frequency security bss; do
+        say ">> alvo: \"$ssid\" bssid $bss ${signal}dBm $(channelOf "$frequency")"
+        say ">>       seguranca: $security"
+    done < /tmp/wifi-scan-target.txt
+}
+
+stopSupplicant()
+{
+    start-stop-daemon -K -q -p "$PIDFILE" 2>/dev/null
+    killall -q wpa_supplicant 2>/dev/null
+    sleep 1
+}
+
+channelOf()
+{
+    frequency=$1
+    if [ "$frequency" -eq 2484 ] 2>/dev/null; then
+        echo "ch14(2.4G)"
+    elif [ "$frequency" -lt 3000 ] 2>/dev/null; then
+        echo "ch$(( (frequency - 2407) / 5 ))(2.4G)"
+    elif [ -n "$frequency" ]; then
+        echo "ch$(( (frequency - 5000) / 5 ))(5G)"
+    fi
+}
+
+attemptConnection()
+{
+    section "CONEXAO (wpa_supplicant -dd, ${CONNECT_TIMEOUT_SECONDS}s)"
+    rm -f "$SUPPLICANT_LOG"
+    if ! wpa_supplicant -B -dd -t -D nl80211 -i "$INTERFACE" -c "$CONFIG" -P "$PIDFILE" \
+        -f "$SUPPLICANT_LOG" > /tmp/wpa-start.err 2>&1; then
+        say "wpa_supplicant NAO subiu:"
+        cat /tmp/wpa-start.err "$SUPPLICANT_LOG" 2>/dev/null | grep -i -E 'line|error|fail' \
+            | head -n 4 | while read -r line; do say "  $line"; done
+        return
+    fi
+
+    previousState=""
+    elapsedSeconds=0
+    stateHistory=""
+    while [ "$elapsedSeconds" -lt "$CONNECT_TIMEOUT_SECONDS" ]; do
+        currentState=$(wpa_cli -i "$INTERFACE" status 2>/dev/null \
+            | grep '^wpa_state=' | cut -d= -f2)
+        if [ "$currentState" != "$previousState" ]; then
+            stateHistory="$stateHistory ${elapsedSeconds}s:${currentState:-?}"
+            previousState=$currentState
+        fi
+        [ "$currentState" = "COMPLETED" ] && break
+        sleep 1
+        elapsedSeconds=$((elapsedSeconds + 1))
+    done
+    say "estados:$stateHistory"
+
+    grep -E "$RELEVANT_EVENTS" "$SUPPLICANT_LOG" | sed -E 's/^[0-9.]+: //' \
+        | awk '!seen[$0]++' | tail -n 8 \
+        | while read -r line; do say "  $line"; done
+
+    if [ "$currentState" = "COMPLETED" ]; then
+        linkSummary=$(wpa_cli -i "$INTERFACE" status \
+            | grep -E '^(ssid|bssid|freq|key_mgmt|pairwise_cipher)=' | tr '\n' ' ')
+        say "  $linkSummary"
+        say "DHCP (udhcpc teste, 10s):"
+        if udhcpc -i "$INTERFACE" -n -q -t 5 -T 2 >> "$REPORT" 2>&1; then
+            say "  IP: $(ip -4 -o addr show "$INTERFACE" | awk '{print $4}')" \
+                "| gw: $(ip route | awk '/^default/ {print $3; exit}')"
+        else
+            say "  SEM resposta DHCP"
+        fi
+    fi
+}
+
+diagnose()
+{
+    section "DIAGNOSTICO"
+    if [ ! -d "/sys/class/net/$INTERFACE" ]; then
+        say "$INTERFACE nao existe: driver/firmware nao subiu (ver dmesg brcmf acima)"
+    elif [ "$currentState" = "COMPLETED" ]; then
+        say "associado ao wifi. Se nao houver IP, o problema e DHCP/roteador, nao o wifi."
+    elif [ ! -s /tmp/wifi-scan-target.txt ]; then
+        say "rede nao vista: fora de alcance, 5 GHz num Pi 3B (so 2.4G), canal 12/13 sem"
+        say "regdom BR, SSID oculto (precisa scan_ssid=1) ou nome diferente"
+    elif grep -q 'WRONG_KEY\|4-Way Handshake failed\|pre-shared key may be incorrect' \
+        "$SUPPLICANT_LOG"; then
+        say "SENHA ERRADA (handshake 4-way falhou): conferir psk e o tamanho acima"
+    elif grep -q 'SAE' /tmp/wifi-scan-target.txt && ! grep -q 'PSK' /tmp/wifi-scan-target.txt; then
+        say "rede WPA3-only (SAE): o wpa_supplicant da imagem foi compilado sem SAE"
+    elif grep -q 'PMF-obrigatorio' /tmp/wifi-scan-target.txt; then
+        say "rede exige PMF (802.11w): adicionar ieee80211w=2 no bloco network"
+    elif echo "$stateHistory" | grep -q 'ASSOCIATED' \
+        && ! echo "$stateHistory" | grep -q '4WAY_HANDSHAKE'; then
+        say "associa mas o 4-way handshake nunca comeca: EAPOL do AP nao chega ao"
+        say "wpa_supplicant (handshake no firmware/FWSUP, ou AP nao inicia). Ver modprobe.d"
+    elif grep -q 'ASSOC-REJECT\|AUTH-REJECT' "$SUPPLICANT_LOG"; then
+        say "AP rejeitou: ver status_code acima (filtro MAC, limite de clientes, PMF...)"
+    else
+        say "sem causa automatica: enviar /root/wpa_supplicant.log"
+    fi
+}
+
+[ -f "$CONFIG" ] || { echo "sem $CONFIG"; exit 1; }
+: > "$REPORT"
+say "================ WIFI DEBUG $(date '+%F %T') ================"
+reportHardware
+reportConfig
+if [ -d "/sys/class/net/$INTERFACE" ]; then
+    scanNetworks
+    attemptConnection
+fi
+diagnose
+say "detalhes: $REPORT e $SUPPLICANT_LOG"
+say "=============================================================="

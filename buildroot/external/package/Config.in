@@ -1,0 +1,1 @@
+source "$BR2_EXTERNAL_NEWS2_PATH/package/monitor-news2/Config.in"

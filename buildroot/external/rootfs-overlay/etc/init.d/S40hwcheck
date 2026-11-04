@@ -1,0 +1,13 @@
+#!/bin/sh
+LOG=/var/log/news2-hw.log
+case "$1" in
+    start)
+        { echo "=== bring-up $(date) ==="
+          echo "-- i2c:";    ls /dev/i2c-* 2>&1
+          echo "-- 1-wire:"; ls /sys/bus/w1/devices/ 2>&1
+          echo "-- drm:";    ls /sys/class/drm/ 2>&1
+          echo "-- input:";  cat /proc/bus/input/devices 2>&1 | grep -i name
+        } >> "$LOG" 2>&1
+        ;;
+esac
+exit 0

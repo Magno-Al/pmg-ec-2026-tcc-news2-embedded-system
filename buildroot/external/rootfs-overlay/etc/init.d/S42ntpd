@@ -1,0 +1,29 @@
+#!/bin/sh
+# Sem RTC o relogio nasce em 1969. O ntpd do BusyBox re-resolve os servidores
+# a cada tentativa, entao pode subir antes de o wifi ter IP; no primeiro
+# acerto ele salta o relogio direto para a hora certa.
+
+PIDFILE=/var/run/ntpd.pid
+SERVERS="-p a.st1.ntp.br -p b.st1.ntp.br -p pool.ntp.org"
+
+case "$1" in
+    start)
+        printf "Starting ntpd: "
+        start-stop-daemon -S -q -b -m -p "$PIDFILE" -x /usr/sbin/ntpd -- -n $SERVERS \
+            && echo "OK" || echo "FAIL"
+        ;;
+    stop)
+        printf "Stopping ntpd: "
+        start-stop-daemon -K -q -p "$PIDFILE" && echo "OK" || echo "FAIL"
+        rm -f "$PIDFILE"
+        ;;
+    restart)
+        "$0" stop
+        sleep 1
+        "$0" start
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart}"
+        exit 1
+        ;;
+esac

@@ -1,0 +1,21 @@
+buildroot/build/
+buildroot/dl/
+buildroot/local.mk
+*.img
+*.ext4
+*.vfat
+__pycache__/
+*.pyc
+.venv/
+
+# segredo: PSK de wifi em texto claro
+buildroot/external/rootfs-overlay/etc/wpa_supplicant.conf
+# app: build local e configuração pessoal do Qt Creator
+software/monitor-news2/build/
+.qtcreator/
+*.user
+
+# bring-up: binários compilados e gravações de PPG (dado fisiológico do voluntário)
+software/bringup/max30102/max30102-hr-test
+software/bringup/max30102/ppg-backend-recorder
+software/bringup/max30102/estudo-comparativo/dados/

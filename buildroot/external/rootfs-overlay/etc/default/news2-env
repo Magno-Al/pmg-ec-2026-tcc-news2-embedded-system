@@ -1,0 +1,5 @@
+QT_QPA_PLATFORM=eglfs
+QT_QPA_EGLFS_INTEGRATION=eglfs_kms
+QT_QPA_EGLFS_KMS_CONFIG=/etc/qt5/eglfs_kms.json
+QT_QPA_FONTDIR=/usr/share/fonts
+LANG=C.UTF-8

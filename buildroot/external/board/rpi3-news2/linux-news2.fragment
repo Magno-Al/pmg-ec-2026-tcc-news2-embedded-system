@@ -1,0 +1,72 @@
+# ---- I2C: MAX30102 @ 0x57 --------------------------------------------------
+# I2C_CHARDEV e o "i2c-dev" do artigo; cria /dev/i2c-1
+CONFIG_I2C=y
+CONFIG_I2C_CHARDEV=y
+CONFIG_I2C_BCM2835=y
+
+# ---- 1-Wire: DS18B20 -------------------------------------------------------
+# "w1-gpio" e "w1-therm" do artigo: /sys/bus/w1/devices/28-*/w1_slave
+CONFIG_W1=y
+CONFIG_W1_MASTER_GPIO=y
+CONFIG_W1_SLAVE_THERM=y
+
+# ---- IIO + MAX30102: MODULO, carregado so pelo S30max30102 -----------------
+# O driver exige IRQ valida (max30102.c: "no valid irq defined"); o INT vai no
+# GPIO 17 (int_pin=17 no config.txt), porque o padrao do overlay e o GPIO 4,
+# o mesmo do w1-gpio. Usado quando o app e compilado com acesso IIO.
+CONFIG_IIO=m
+CONFIG_IIO_BUFFER=y
+CONFIG_IIO_KFIFO_BUF=m
+CONFIG_MAX30102=m
+
+# ---- Entrada: toque capacitivo USB HID ------------------------------------
+# EVDEV: /dev/input/event*, lido pelo evdevtouch do Qt
+# HID_MULTITOUCH: controladores touch HID (protocolo MT tipo B)
+CONFIG_INPUT=y
+CONFIG_INPUT_EVDEV=y
+CONFIG_INPUT_TOUCHSCREEN=y
+CONFIG_HID=y
+CONFIG_HID_GENERIC=y
+CONFIG_HID_MULTITOUCH=y
+CONFIG_USB_HID=y
+CONFIG_USB_SUPPORT=y
+CONFIG_USB=y
+
+# ---- Video: VideoCore IV com KMS completo ---------------------------------
+# FBDEV_EMULATION mantem o console de boot visivel no HDMI
+# SND/SND_SOC=y: DRM_VC4 depende de "SND && SND_SOC" e o bcmrpi3_defconfig os
+# traz como =m, o que rebaixa o VC4 a modulo em silencio. Sem udev ninguem
+# carrega o modulo -> sem /dev/dri -> eglfs: "Could not find DRM device!"
+CONFIG_SND=y
+CONFIG_SND_SOC=y
+CONFIG_DRM=y
+CONFIG_DRM_VC4=y
+CONFIG_DRM_FBDEV_EMULATION=y
+CONFIG_FB=y
+CONFIG_CMA=y
+CONFIG_DMA_CMA=y
+
+# ---- GPIO: buzzer e LED RGB ------------------------------------------------
+# GPIO_CDEV_V1: API do libgpiod 1.6.x empacotado no Buildroot
+CONFIG_GPIOLIB=y
+CONFIG_GPIO_CDEV=y
+CONFIG_GPIO_CDEV_V1=y
+
+# ---- CPU: frequencia sob demanda -----------------------------------------
+# O bcmrpi3_defconfig traz POWERSAVE como padrao: CPU presa em 600 MHz (max
+# 1,4 GHz). schedutil sobe o clock conforme a carga do Qt e da inferencia.
+# CONFIG_CPU_FREQ_DEFAULT_GOV_POWERSAVE is not set
+CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL=y
+CONFIG_CPU_FREQ_GOV_SCHEDUTIL=y
+
+# ---- Instrumentacao para os benchmarks do artigo --------------------------
+# PRINTK_TIME: timestamps no dmesg -> tempo de boot
+# HIGH_RES_TIMERS: latencia de inferencia e jitter I2C
+CONFIG_PRINTK_TIME=y
+CONFIG_TASKSTATS=y
+CONFIG_TASK_IO_ACCOUNTING=y
+CONFIG_TASK_XACCT=y
+CONFIG_HIGH_RES_TIMERS=y
+
+CONFIG_MODULES=y
+CONFIG_MODULE_UNLOAD=y

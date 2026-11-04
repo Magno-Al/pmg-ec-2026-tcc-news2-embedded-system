@@ -1,0 +1,47 @@
+#!/bin/sh
+# Com devtmpfs puro (sem mdev/udev) nao ha autoload por modalias: o brcmfmac
+# precisa de modprobe explicito. O IP de wlan0 fica a cargo do S41dhcpcd.
+
+INTERFACE=wlan0
+COUNTRY=BR
+CONFIG=/etc/wpa_supplicant.conf
+PIDFILE=/var/run/wpa_supplicant.$INTERFACE.pid
+
+waitForInterface()
+{
+    attempts=50
+    while [ ! -d "/sys/class/net/$INTERFACE" ] && [ "$attempts" -gt 0 ]; do
+        sleep 0.1
+        attempts=$((attempts - 1))
+    done
+    [ -d "/sys/class/net/$INTERFACE" ]
+}
+
+case "$1" in
+    start)
+        [ -f "$CONFIG" ] || exit 0
+        printf "Starting wifi (%s): " "$INTERFACE"
+        modprobe brcmfmac
+        if ! waitForInterface; then
+            echo "FAIL ($INTERFACE nao apareceu)"
+            exit 1
+        fi
+        iw reg set "$COUNTRY"
+        start-stop-daemon -S -q -p "$PIDFILE" -x /usr/sbin/wpa_supplicant -- \
+            -B -D nl80211 -i "$INTERFACE" -c "$CONFIG" -P "$PIDFILE" \
+            && echo "OK" || echo "FAIL"
+        ;;
+    stop)
+        printf "Stopping wifi (%s): " "$INTERFACE"
+        start-stop-daemon -K -q -p "$PIDFILE" && echo "OK" || echo "FAIL"
+        ;;
+    restart)
+        "$0" stop
+        sleep 1
+        "$0" start
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart}"
+        exit 1
+        ;;
+esac
