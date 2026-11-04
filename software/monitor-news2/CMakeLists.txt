@@ -11,6 +11,16 @@ option(MONITOR_NEWS2_HARDWARE "Usa os sensores reais em vez dos mocks" OFF)
 # "iio" (driver do kernel + overlay i2c-sensor,max30102,int_pin=17, por interrupção)
 set(MONITOR_NEWS2_SENSOR_BACKEND "i2cdev" CACHE STRING "Acesso ao MAX30102: i2cdev ou iio")
 set_property(CACHE MONITOR_NEWS2_SENSOR_BACKEND PROPERTY STRINGS i2cdev iio)
+# Quem calcula FC, SpO₂ e FR a partir do PPG: "processor" (PpgProcessor deste app), "pipeline"
+# (método do ../ppg-pipeline: MSPTD + Smart Fusion) ou "hybrid" (FC e SpO₂ do pipeline, FR do
+# PpgProcessor). Contato e curvas são sempre do PpgProcessor. O padrão segue a comparação na
+# BIDMC e no sensor real (../ppg-pipeline/scripts/comparison): o pipeline erra menos a FC, e o
+# PpgProcessor a FR, sem o falso 6–7 irpm das ondas de Mayer.
+set(MONITOR_NEWS2_PPG_ALGORITHM "hybrid" CACHE STRING
+    "Cálculo de FC/SpO2/FR: processor, pipeline ou hybrid")
+set_property(CACHE MONITOR_NEWS2_PPG_ALGORITHM PROPERTY STRINGS processor pipeline hybrid)
+
+add_subdirectory(../ppg-pipeline ppg-pipeline)
 
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Quick Test)
 
@@ -34,6 +44,8 @@ add_library(monitor_core STATIC
     src/core/PpgProcessor.cpp
     src/core/LiveSignalBuffer.h
     src/core/LiveSignalBuffer.cpp
+    src/core/PipelineVitalsEstimator.h
+    src/core/PipelineVitalsEstimator.cpp
     src/devices/VitalSignsSource.h
     src/devices/AlarmIndicator.h
     src/prediction/DeteriorationPredictor.h
@@ -47,7 +59,18 @@ add_library(monitor_core STATIC
     src/mock/MockScenario.cpp
 )
 target_include_directories(monitor_core PUBLIC src)
-target_link_libraries(monitor_core PUBLIC Qt6::Core)
+target_link_libraries(monitor_core PUBLIC Qt6::Core ppg_pipeline)
+if(MONITOR_NEWS2_PPG_ALGORITHM STREQUAL "pipeline")
+    target_compile_definitions(monitor_core PUBLIC MONITOR_NEWS2_PPG_PIPELINE)
+elseif(MONITOR_NEWS2_PPG_ALGORITHM STREQUAL "hybrid")
+    target_compile_definitions(monitor_core PUBLIC
+        MONITOR_NEWS2_PPG_PIPELINE
+        MONITOR_NEWS2_PPG_HYBRID
+    )
+elseif(NOT MONITOR_NEWS2_PPG_ALGORITHM STREQUAL "processor")
+    message(FATAL_ERROR "MONITOR_NEWS2_PPG_ALGORITHM deve ser processor, pipeline ou hybrid")
+endif()
+message(STATUS "FC/SpO2/FR via ${MONITOR_NEWS2_PPG_ALGORITHM}")
 
 if(MONITOR_NEWS2_HARDWARE)
     target_sources(monitor_core PRIVATE
@@ -141,3 +164,4 @@ add_monitor_test(tst_alarmpolicy)
 add_monitor_test(tst_spokennumber)
 add_monitor_test(tst_trendtracker)
 add_monitor_test(tst_ppgprocessor)
+add_monitor_test(tst_pipelinevitalsestimator)

@@ -13,10 +13,10 @@ if BR2_PACKAGE_MONITOR_NEWS2
 
 config BR2_PACKAGE_MONITOR_NEWS2_SRCDIR
 	string "diretorio do codigo-fonte"
-	default "$(BR2_EXTERNAL_NEWS2_PATH)/../../software/monitor-news2"
+	default "$(BR2_EXTERNAL_NEWS2_PATH)/../../software"
 	help
-	  Codigo do app, software/monitor-news2 neste repositorio
-	  (SITE_METHOD=local).
+	  Diretorio software/ deste repositorio (SITE_METHOD=local): o app
+	  fica em monitor-news2/ e usa a biblioteca de ppg-pipeline/.
 
 choice
 	prompt "acesso ao MAX30102"
@@ -39,6 +39,24 @@ config BR2_PACKAGE_MONITOR_NEWS2_SENSOR_IIO
 	  O driver drivers/iio/health/max30102 atende a interrupcao do
 	  sensor e o app le /dev/iio:deviceN. Instala o S30max30102,
 	  que carrega o modulo no boot. Exige o INT no GPIO 17.
+
+endchoice
+
+choice
+	prompt "calculo de FC/SpO2/FR"
+	default BR2_PACKAGE_MONITOR_NEWS2_PPG_HYBRID
+	help
+	  Quem calcula os sinais vitais a partir do PPG. Comparacao dos
+	  metodos: software/ppg-pipeline/scripts/comparison.
+
+config BR2_PACKAGE_MONITOR_NEWS2_PPG_HYBRID
+	bool "hibrido (FC/SpO2 do ppg-pipeline, FR do PpgProcessor)"
+
+config BR2_PACKAGE_MONITOR_NEWS2_PPG_PIPELINE
+	bool "ppg-pipeline (MSPTD + Smart Fusion)"
+
+config BR2_PACKAGE_MONITOR_NEWS2_PPG_PROCESSOR
+	bool "PpgProcessor do app"
 
 endchoice
 

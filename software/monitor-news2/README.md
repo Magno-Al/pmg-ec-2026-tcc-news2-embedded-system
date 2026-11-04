@@ -31,6 +31,17 @@ com `-DMONITOR_NEWS2_SENSOR_BACKEND` (no Buildroot, opção "acesso ao MAX30102"
 
 A comparação entre os dois está em `../bringup/max30102/estudo-comparativo`.
 
+O cálculo de FC, SpO₂ e FR também é escolhido na compilação, com
+`-DMONITOR_NEWS2_PPG_ALGORITHM` (no Buildroot, opção "cálculo de FC/SpO2/FR" do pacote):
+
+- `hybrid` (padrão): FC e SpO₂ pelo método do `../ppg-pipeline` (MSPTD), FR pelo `PpgProcessor`.
+- `pipeline`: os três pelo `../ppg-pipeline` (FR pelo Smart Fusion de Karlen).
+- `processor`: os três pelo `PpgProcessor` deste app.
+
+O contato do dedo e as curvas da tela são sempre do `PpgProcessor`. O padrão segue a comparação
+na BIDMC (`../ppg-pipeline/scripts/comparison`): o pipeline erra menos a FC, e o `PpgProcessor`
+erra menos a FR e não confunde as ondas de Mayer (~6–7 irpm) com respiração no sensor real.
+
 - Sem dedo, as linhas ficam em "AGUARDANDO DEDO", sem alarme. Com o dedo, as curvas de FC e
   SpO₂ passam a mostrar o PPG real e a de FR a respiração extraída do PPG.
 - FC em ~5 s, SpO₂ em ~10 s, FR em ~60 s (32 s de sinal limpo + pico espectral claro). Até

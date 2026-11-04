@@ -82,6 +82,12 @@ void Max30102VitalSignsSource::poll()
         {
             onFingerContactChanged();
         }
+#ifdef MONITOR_NEWS2_PPG_PIPELINE
+        if(m_processor.hasFingerContact())
+        {
+            m_pipeline.addSample(sample);
+        }
+#endif
         if(output.plethysmographyDisplay)
         {
             LiveSignalBuffer::forChannel(LiveSignalBuffer::Channel::Plethysmography)
@@ -125,16 +131,29 @@ void Max30102VitalSignsSource::publishReading()
     {
         return;
     }
+#if defined(MONITOR_NEWS2_PPG_HYBRID)
+    const auto& cardiacEstimator = m_pipeline;
+    const auto& respiratoryEstimator = m_processor;
+#elif defined(MONITOR_NEWS2_PPG_PIPELINE)
+    const auto& cardiacEstimator = m_pipeline;
+    const auto& respiratoryEstimator = m_pipeline;
+#else
+    const auto& cardiacEstimator = m_processor;
+    const auto& respiratoryEstimator = m_processor;
+#endif
     emit pulseOximetryMeasured(
-        m_processor.heartRate().value_or(0),
-        m_processor.oxygenSaturation().value_or(0),
-        m_processor.respiratoryRate().value_or(0)
+        cardiacEstimator.heartRate().value_or(0),
+        cardiacEstimator.oxygenSaturation().value_or(0),
+        respiratoryEstimator.respiratoryRate().value_or(0)
     );
 }
 
 void Max30102VitalSignsSource::onFingerContactChanged()
 {
     const bool hasFingerContact = m_processor.hasFingerContact();
+#ifdef MONITOR_NEWS2_PPG_PIPELINE
+    m_pipeline.reset();
+#endif
     emit fingerContactChanged(hasFingerContact);
     if(hasFingerContact)
     {

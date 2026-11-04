@@ -1,8 +1,8 @@
-	# Cálculo de parâmetros fisiológicos - Sistema Embarcado para Monitoramento e Predição de Deterioração Clínica Intra-hospitalar
+# Cálculo de parâmetros fisiológicos - Sistema Embarcado para Monitoramento e Predição de Deterioração Clínica Intra-hospitalar
 
 ## 1. Visão geral
 
-Este projeto é o pipeline C++17 de um TCC que processa fotopletismografia, chamada de PPG, para calcular frequência cardíaca, SpO2 e frequência respiratória, e roda numa Raspberry Pi. Hoje ele lê os dois canais do sensor a partir de um CSV preparado, em vez de ler o MAX30102 real, e os três parâmetros calculados alimentam o escore NEWS2, que é calculado pela parte em Python do projeto, fora deste repositório.
+Este projeto é o pipeline C++17 de um TCC que processa fotopletismografia, chamada de PPG, para calcular frequência cardíaca, SpO2 e frequência respiratória, e roda numa Raspberry Pi. O executável `tcc` deste diretório lê os dois canais a partir de um CSV preparado das bases públicas, para desenvolvimento e validação. No equipamento, o app `software/monitor-news2` lê o MAX30102, usa este método como biblioteca e calcula o NEWS2 com os parâmetros resultantes (ver seção 7).
 
 ## 2. Como usar
 
@@ -122,20 +122,33 @@ Na BIDMC, os dois anotadores manuais de respiração concordam entre si em 98,4%
 
 A tabela 4 de Argüello-Prada et al. (2024) relata, na BIDMC, mediana de MAE de 2,3 rpm para Shelley et al., 2,7 para Pimentel et al. (2017), 3,2 para o próprio método de Argüello-Prada et al., 4,6 para Nilsson et al., 5,5 para Fleming e Tarassenko e 5,7 para o Smart Fusion de Karlen et al. (2013). Essa comparação não é direta com os números acima, porque vem de outra implementação e outro alinhamento de janela.
 
-## 7. Limitações e pendências
+## 7. Uso no app
+
+O app `software/monitor-news2` usa este projeto como biblioteca (`ppg_pipeline`, via
+`add_subdirectory`): o executável `tcc` e os testes só são montados quando este diretório é
+compilado sozinho. O app lê o MAX30102 (i2c-dev ou driver IIO) e entrega as amostras a 25 Hz ao
+`PipelineVitalsEstimator`, que reproduz o laço do `main.cpp` (filtro, buffer de 60 s, qualidade,
+FC, SpO₂ e FR a cada 5 s). Por padrão o app usa FC e SpO₂ deste método e a FR do seu próprio
+`PpgProcessor`; a comparação que embasa essa escolha está em `scripts/comparison`.
+
+O módulo `DS18B20` lê o sensor real em `/sys/bus/w1/devices/28-*/w1_slave` quando ele existe
+(`find_ds18b20_w1_slave`, `read_ds18b20_w1_slave`), e o arquivo de exemplo quando não.
+
+## 8. Limitações e pendências
 
 - Coeficientes de SpO2 provisórios, sem calibração própria.
 - Viés negativo da FR no OpenOximetry e na BIDMC.
 - Ausência de estimativa de FR acima de 30 rpm, sendo que a pontuação máxima do NEWS2 já vale a partir de 25 rpm.
 - Critério de PI não avaliado na BIDMC, porque `raw_intensity` fica sempre falso nessa base.
 - Desempenho fora de repouso não avaliado em nenhuma das duas bases.
-- Temperatura lida só no início da execução, leitura periódica pendente.
-- Driver do MAX30102 não implementado.
+- No `tcc`, temperatura lida só no início da execução; o app lê periodicamente.
+- No sinal real do MAX30102 a 25 Hz, a FR fundida caiu em 6–7,5 irpm (ondas de Mayer), por isso
+  o app usa a FR do `PpgProcessor` por padrão (ver `scripts/comparison`).
 - Falta confirmar se o simulador Waller simula SpO2 de forma óptica.
 - SpO2 avaliado num único encounter do OpenOximetry.
 - Todo o desenvolvimento do método foi feito sobre esse mesmo encounter.
 
-## 8. Referências
+## 9. Referências
 
 ALLEN, J. Photoplethysmography and its application in clinical physiological measurement. Physiological Measurement, v. 28, n. 3, p. R1-R39, 2007.
 
