@@ -21,9 +21,9 @@ VALUES_TO_ACCEPT = {
 }
 
 FUTURE_WINDOW = 6  #janela deslizante prever se em alguma das próximas 6h, o paciente vai ser escore >=5
-PAST_WINDOW = 6  #janela deslizante que obtém os sinais vitais e escore EWS das últimas 6h
+PAST_WINDOW = 1  #horas de histórico usadas nas features: a janela vai de t-1 até t (medições de 1 em 1h)
 THRESHOLD = 5  #NEWS2 >= 5 => "em risco" (métrica)
-LAGS = (1, 2, 3)  #quantidade de 'fotos' que cada linha irá armazenar das variáveis anteriores para o modelo de ML
+LAGS = (1,)  #quantidade de 'fotos' que cada linha irá armazenar das variáveis anteriores (t-1) para o modelo de ML
 FIO2_FFILL_LIMIT = 4  #máximo de horas que o último registro de FiO2 é propagado; após isso, considera ar ambiente
 ROOM_AIR_FIO2 = 0.21  #FiO2 do ar ambiente, usada quando não há registro de FiO2
 
@@ -109,7 +109,7 @@ class PreProcessing:
         df["_at_risk"] = at_risk
         df["Y"] = df.groupby("patient_id")["_at_risk"].transform(future_window)
 
-        # elegível = tem passado suficiente (W) E futuro completo (Y não-NaN)
+        # elegível = tem passado suficiente (PAST_WINDOW horas antes de t, p/ existir o lag1) E futuro completo (Y não-NaN)
         position = df.groupby("patient_id").cumcount()
         df["eligible"] = (position >= past_window) & df["Y"].notna()
 
@@ -117,7 +117,11 @@ class PreProcessing:
         self.__dataFrame = df
 
     #Função para criar as features das "fotos", para que o modelo de ML consiga ver a janela
-    #deslizante passada.
+    #deslizante passada. Com a janela de 1h, cada linha (hora t) vê apenas t e t-1:
+    #  - atual (t), lag1 (t-1) e delta (t - (t-1)) de cada sinal vital e do NEWS2
+    #  - média e desvio móveis foram removidos: com 2 pontos são redundantes
+    #    (média = (X + X_lag1)/2 e desvio = |delta|/sqrt(2)); lag2 e lag3 ficam fora da janela
+    #  - o delta também é X - X_lag1, mas é mantido porque árvores não calculam diferenças entre colunas
     def buildFeatures(self, lags=LAGS, window=PAST_WINDOW):
         df = self.__dataFrame
 
@@ -125,25 +129,20 @@ class PreProcessing:
         feature_cols = list(COLUMNS_TO_ANALYSE)  # o valor "atual" de cada vital é a própria coluna original
 
         for v in COLUMNS_TO_ANALYSE:
-            # LAGS: valor em t-1, t-2, t-3 — shift dentro do groupby nunca cruza paciente nem vê o futuro
+            # LAGS: valor em t-1 — shift dentro do groupby nunca cruza paciente nem vê o futuro
             for k in lags:
                 col = f"{v}_lag{k}"
                 df[col] = grp[v].shift(k)
                 feature_cols.append(col)
 
-            # DELTA: variação na janela (atual menos o valor de (window-1) horas atrás)
+            # DELTA: variação na janela (atual menos o valor de `window` horas atrás => t - (t-1))
             col = f"{v}_delta"
-            df[col] = df[v] - grp[v].shift(window - 1)
+            df[col] = df[v] - grp[v].shift(window)
             feature_cols.append(col)
 
-            # MÉDIA e DESVIO móveis — rolling é trailing (olha só p/ trás) => causal
-            df[f"{v}_media"] = grp[v].transform(lambda s: s.rolling(window, min_periods=1).mean())
-            df[f"{v}_std"] = grp[v].transform(lambda s: s.rolling(window, min_periods=1).std())
-            feature_cols += [f"{v}_media", f"{v}_std"]
-
-        # NEWS2 atual + variação recente: preditor forte e legítimo (só usa passado)
+        # NEWS2 atual + variação na última hora: preditor forte e legítimo (só usa passado)
         df["news2_lag1"] = grp["news2"].shift(1)
-        df["news2_delta"] = df["news2"] - grp["news2"].shift(window - 1)
+        df["news2_delta"] = df["news2"] - grp["news2"].shift(window)
         feature_cols += ["news2", "news2_lag1", "news2_delta"]
 
         self.__dataFrame = df

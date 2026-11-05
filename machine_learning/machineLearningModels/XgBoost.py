@@ -6,6 +6,8 @@ from sklearn.metrics import (average_precision_score, roc_auc_score,
                              classification_report, brier_score_loss)
 from sklearn.model_selection import StratifiedGroupKFold
 
+from machineLearningModels.evaluation import evaluateBySubset
+
 # TODO (voltaremos nisso): o early stopping usa o conjunto de TESTE como eval_set (ver train()).
 #  Isso faz o teste influenciar a escolha do nº de árvores => métricas levemente otimistas.
 #  Correção: usar o conjunto de VALIDAÇÃO de splitByPatient() no eval_set e subir o teto de
@@ -75,7 +77,9 @@ class TrainModel:
         print(confusion_matrix(self.y_test, pred))
         print("\n", classification_report(self.y_test, pred, digits=3))
 
-        return {"auprc": auprc, "auroc": auroc, "brier": brier}
+        subsets = evaluateBySubset(proba, self.X_test, self.y_test)
+
+        return {"auprc": auprc, "auroc": auroc, "brier": brier, **subsets}
 
     def featureImportance(self, n_repeats=5, sample_size=50000, top=15):
         '''
@@ -97,7 +101,7 @@ class TrainModel:
         by_feature["gain_xgb"] = self.model.feature_importances_  #importância nativa (normalizada, soma 1)
         by_feature = by_feature.sort_values("queda_auprc", ascending=False).reset_index(drop=True)
 
-        # POR GRUPO: o sinal vital inteiro (atual + lags + delta + média + std) é embaralhado junto,
+        # POR GRUPO: o sinal vital inteiro (atual + lag1 + delta) é embaralhado junto,
         # pois variáveis correlacionadas (ex.: HR e HR_lag1) "cobrem" umas às outras na permutação individual
         groups = {}
         for col in X.columns:

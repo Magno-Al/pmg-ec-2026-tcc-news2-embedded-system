@@ -1,0 +1,147 @@
+{
+  "total": 21,
+  "configuracao": {
+    "sinais_vitais": [
+      "Resp",
+      "O2Sat",
+      "SBP",
+      "HR",
+      "Temp",
+      "FiO2"
+    ],
+    "lags_horas": [
+      1
+    ],
+    "janela_passada_horas": 1,
+    "horizonte_horas": 3,
+    "alvo": "Y = 1 se NEWS2 >= 5 em alguma das próximas 3h (t+1 até t+3)"
+  },
+  "features": [
+    {
+      "name": "Resp",
+      "variavel": "Resp",
+      "tipo": "atual",
+      "descricao": "Valor atual (hora t) de frequência respiratória (irpm)"
+    },
+    {
+      "name": "O2Sat",
+      "variavel": "O2Sat",
+      "tipo": "atual",
+      "descricao": "Valor atual (hora t) de saturação de O2 (%)"
+    },
+    {
+      "name": "SBP",
+      "variavel": "SBP",
+      "tipo": "atual",
+      "descricao": "Valor atual (hora t) de pressão arterial sistólica (mmHg)"
+    },
+    {
+      "name": "HR",
+      "variavel": "HR",
+      "tipo": "atual",
+      "descricao": "Valor atual (hora t) de frequência cardíaca (bpm)"
+    },
+    {
+      "name": "Temp",
+      "variavel": "Temp",
+      "tipo": "atual",
+      "descricao": "Valor atual (hora t) de temperatura (°C)"
+    },
+    {
+      "name": "FiO2",
+      "variavel": "FiO2",
+      "tipo": "atual",
+      "descricao": "Valor atual (hora t) de fração inspirada de O2 (0.21 a 1.0)"
+    },
+    {
+      "name": "Resp_lag1",
+      "variavel": "Resp",
+      "tipo": "lag",
+      "descricao": "Valor de frequência respiratória (irpm) 1h atrás (t-1)"
+    },
+    {
+      "name": "Resp_delta",
+      "variavel": "Resp",
+      "tipo": "delta",
+      "descricao": "Variação de frequência respiratória (irpm): valor em t menos valor em t-1 (1h)"
+    },
+    {
+      "name": "O2Sat_lag1",
+      "variavel": "O2Sat",
+      "tipo": "lag",
+      "descricao": "Valor de saturação de O2 (%) 1h atrás (t-1)"
+    },
+    {
+      "name": "O2Sat_delta",
+      "variavel": "O2Sat",
+      "tipo": "delta",
+      "descricao": "Variação de saturação de O2 (%): valor em t menos valor em t-1 (1h)"
+    },
+    {
+      "name": "SBP_lag1",
+      "variavel": "SBP",
+      "tipo": "lag",
+      "descricao": "Valor de pressão arterial sistólica (mmHg) 1h atrás (t-1)"
+    },
+    {
+      "name": "SBP_delta",
+      "variavel": "SBP",
+      "tipo": "delta",
+      "descricao": "Variação de pressão arterial sistólica (mmHg): valor em t menos valor em t-1 (1h)"
+    },
+    {
+      "name": "HR_lag1",
+      "variavel": "HR",
+      "tipo": "lag",
+      "descricao": "Valor de frequência cardíaca (bpm) 1h atrás (t-1)"
+    },
+    {
+      "name": "HR_delta",
+      "variavel": "HR",
+      "tipo": "delta",
+      "descricao": "Variação de frequência cardíaca (bpm): valor em t menos valor em t-1 (1h)"
+    },
+    {
+      "name": "Temp_lag1",
+      "variavel": "Temp",
+      "tipo": "lag",
+      "descricao": "Valor de temperatura (°C) 1h atrás (t-1)"
+    },
+    {
+      "name": "Temp_delta",
+      "variavel": "Temp",
+      "tipo": "delta",
+      "descricao": "Variação de temperatura (°C): valor em t menos valor em t-1 (1h)"
+    },
+    {
+      "name": "FiO2_lag1",
+      "variavel": "FiO2",
+      "tipo": "lag",
+      "descricao": "Valor de fração inspirada de O2 (0.21 a 1.0) 1h atrás (t-1)"
+    },
+    {
+      "name": "FiO2_delta",
+      "variavel": "FiO2",
+      "tipo": "delta",
+      "descricao": "Variação de fração inspirada de O2 (0.21 a 1.0): valor em t menos valor em t-1 (1h)"
+    },
+    {
+      "name": "news2",
+      "variavel": "news2",
+      "tipo": "atual",
+      "descricao": "Escore NEWS2 atual (hora t), calculado a partir dos 6 sinais vitais"
+    },
+    {
+      "name": "news2_lag1",
+      "variavel": "news2",
+      "tipo": "lag",
+      "descricao": "Escore NEWS2 1h atrás (t-1)"
+    },
+    {
+      "name": "news2_delta",
+      "variavel": "news2",
+      "tipo": "delta",
+      "descricao": "Variação do NEWS2: valor em t menos valor em t-1 (1h)"
+    }
+  ]
+}
