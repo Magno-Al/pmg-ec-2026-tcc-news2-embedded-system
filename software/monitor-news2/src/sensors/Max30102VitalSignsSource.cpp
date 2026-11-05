@@ -49,6 +49,20 @@ Max30102VitalSignsSource::Max30102VitalSignsSource(QObject* parent)
 
 void Max30102VitalSignsSource::start()
 {
+    const QString tracePath = qEnvironmentVariable("MONITOR_NEWS2_TRACE");
+    if(!tracePath.isEmpty())
+    {
+        m_traceFile = std::make_unique<QFile>(tracePath);
+        if(m_traceFile->open(QIODevice::WriteOnly | QIODevice::Text))
+        {
+            m_trace = std::make_unique<QTextStream>(m_traceFile.get());
+            *m_trace << "tipo,ms,a,b,c,d,e,f,g\n"
+                     << "# s,ms,red,ir,contato,curva_pleth,curva_resp(;)\n"
+                     << "# p,ms,fc,spo2,fr,fc_processor,fc_refinada,fr_bruta,correcao\n";
+            m_traceClock.start();
+            qInfo().noquote() << "traço em" << tracePath;
+        }
+    }
     LiveSignalBuffer::forChannel(LiveSignalBuffer::Channel::Plethysmography)
         .configure(PpgProcessor::SampleRateHz);
     LiveSignalBuffer::forChannel(LiveSignalBuffer::Channel::Respiration)
@@ -124,6 +138,20 @@ void Max30102VitalSignsSource::poll()
         {
             LiveSignalBuffer::forChannel(LiveSignalBuffer::Channel::Respiration)
                 .append(respirationValue);
+        }
+        if(m_trace)
+        {
+            QStringList respiration;
+            for(double respirationValue : output.respirationDisplay)
+            {
+                respiration << QString::number(respirationValue, 'f', 3);
+            }
+            *m_trace << "s," << m_traceClock.elapsed() << ',' << sample.red << ','
+                     << sample.infrared << ',' << int(m_processor.hasFingerContact()) << ','
+                     << (output.plethysmographyDisplay
+                             ? QString::number(*output.plethysmographyDisplay, 'f', 3)
+                             : QString())
+                     << ',' << respiration.join(';') << '\n';
         }
     }
 
@@ -234,6 +262,21 @@ void Max30102VitalSignsSource::publishReading()
         cardiacEstimator.oxygenSaturation().value_or(0),
         roundedOrZero(respiratoryRate)
     );
+    if(m_trace)
+    {
+#ifdef MONITOR_NEWS2_PPG_REFINED_HEART_RATE
+        const double refined = m_refinedHeartRate.preciseHeartRate().value_or(0.0);
+#else
+        const double refined = 0.0;
+#endif
+        *m_trace << "p," << m_traceClock.elapsed() << ',' << roundedOrZero(heartRate) << ','
+                 << cardiacEstimator.oxygenSaturation().value_or(0) << ','
+                 << roundedOrZero(respiratoryRate) << ','
+                 << m_processor.heartRate().value_or(0) << ',' << refined << ','
+                 << respiratoryEstimator.respiratoryRate().value_or(0) << ',' << correction
+                 << '\n';
+        m_trace->flush();
+    }
 }
 
 void Max30102VitalSignsSource::onFingerContactChanged()

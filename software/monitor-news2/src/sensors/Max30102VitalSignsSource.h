@@ -14,7 +14,9 @@ using Max30102Device = Max30102;
 #endif
 
 #include <QElapsedTimer>
+#include <QFile>
 #include <QSocketNotifier>
+#include <QTextStream>
 #include <QTimer>
 
 #include <memory>
@@ -59,6 +61,11 @@ private:
         Max30102Iio::FullRateHz, PipelineVitalsEstimator::Outputs::HeartRateOnly
     };
 #endif
+    // depuração: com MONITOR_NEWS2_TRACE=<arquivo>, grava cada amostra de 25 Hz (bruto, contato,
+    // valores das curvas) e cada publicação (FC/SpO₂/FR e suas fontes)
+    std::unique_ptr<QFile> m_traceFile;
+    std::unique_ptr<QTextStream> m_trace;
+    QElapsedTimer m_traceClock;
     // taxa real: amostras (25 Hz) contadas desde o primeiro lote após abrir o sensor
     QElapsedTimer m_sampleRateClock;
     long m_samplesSinceFirstBatch = 0;

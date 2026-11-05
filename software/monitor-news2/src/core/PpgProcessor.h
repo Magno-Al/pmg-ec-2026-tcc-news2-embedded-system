@@ -77,12 +77,13 @@ private:
     bool updateFingerContact(uint32_t infrared);
     void resetMeasurements();
     void processCardiacSample(const PpgSample& sample, Output& output);
-    void detectBeat(Output& output);
-    void onBeat(double peakPosition, double infraredAmplitude, double redAmplitude, Output& output);
-    void addBeatModulations(double beatSeconds, double amplitude, double interval,
-                            Output& output);
-    void processRespirationSample();
+    void detectBeat();
+    void onBeat(double peakPosition, double infraredAmplitude, double redAmplitude);
+    void addBeatModulations(double beatSeconds, double amplitude, double interval);
+    void processRespirationSample(Output& output);
     void estimateRespiratoryRate();
+    bool publishRespiratoryRate(const std::vector<double>& spectrum);
+    double respirationDisplayValue(double baseline);
 
     static std::vector<double> normalizedSpectrum(const std::deque<double>& window);
     static std::optional<double> breathRateFromSpectrum(const std::vector<double>& spectrum);
@@ -122,7 +123,16 @@ private:
     RespiratoryModulation m_baselineModulation;
     RespiratoryModulation m_amplitudeModulation;
     RespiratoryModulation m_intervalModulation;
-    std::deque<double> m_respirationDisplayWindow;
+    // curva de respiração da tela: linha de base, passa-banda de 4ª ordem 0,1–0,5 Hz (duas
+    // seções de 2ª ordem em cada lado) e escala por envelope de pico
+    Biquad m_respirationDisplayHighPass[2];
+    Biquad m_respirationDisplayLowPass[2];
+    bool m_isRespirationDisplayPrimed = false;
+    double m_respirationDisplayEnvelope = 0.0;
+    int64_t m_respirationDisplayCount = 0;
+    // FR: espectro fundido com média exponencial entre estimativas e mediana das últimas saídas
+    std::vector<double> m_averagedRespirationSpectrum;
+    std::deque<double> m_recentRespiratoryRates;
     std::optional<double> m_respiratoryRate;
     int64_t m_respiratoryRateAt = 0;
 };

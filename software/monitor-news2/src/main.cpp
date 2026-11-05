@@ -12,10 +12,12 @@
 #include <unistd.h>
 
 #include <QCommandLineParser>
+#include <QDateTime>
 #include <QDirIterator>
 #include <QFontDatabase>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
+#include <QQuickWindow>
 #include <QSocketNotifier>
 
 #include <csignal>
@@ -24,6 +26,7 @@ namespace
 {
 
 int terminationPipe[2] = {-1, -1};
+int screenshotPipe[2] = {-1, -1};
 
 // Só funções async-signal-safe aqui: o aviso vai por um pipe e o Qt encerra o laço de eventos
 // normalmente, o que roda os destrutores — inclusive o que desliga o buffer IIO e os LEDs do
@@ -32,6 +35,30 @@ void onTerminationSignal(int)
 {
     const char signalled = 1;
     [[maybe_unused]] const ssize_t written = ::write(terminationPipe[1], &signalled, 1);
+}
+
+// Depuração no equipamento, sem servidor gráfico (eglfs desenha direto no DRM): "kill -USR1"
+// salva a janela em /tmp/monitor-news2-<hora>.png.
+void onScreenshotSignal(int)
+{
+    const char signalled = 1;
+    [[maybe_unused]] const ssize_t written = ::write(screenshotPipe[1], &signalled, 1);
+}
+
+void saveScreenshot(QQmlApplicationEngine& engine)
+{
+    const QList<QObject*> roots = engine.rootObjects();
+    auto* window = roots.isEmpty() ? nullptr : qobject_cast<QQuickWindow*>(roots.first());
+    if(!window)
+    {
+        return;
+    }
+    const QString path = QStringLiteral("/tmp/monitor-news2-%1.png")
+        .arg(QDateTime::currentDateTime().toString(QStringLiteral("HHmmss")));
+    if(window->grabWindow().save(path))
+    {
+        qInfo().noquote() << "captura de tela:" << path;
+    }
 }
 
 void loadBundledFonts()
@@ -115,6 +142,19 @@ int main(int argc, char* argv[])
         Qt::QueuedConnection
     );
     engine.loadFromModule("MonitorNews2", "Main");
+
+    if(pipe2(screenshotPipe, O_CLOEXEC) == 0)
+    {
+        auto* screenshotNotifier = new QSocketNotifier(
+            screenshotPipe[0], QSocketNotifier::Read, &application
+        );
+        QObject::connect(screenshotNotifier, &QSocketNotifier::activated, &application, [&engine] {
+            char signalled = 0;
+            [[maybe_unused]] const ssize_t consumed = ::read(screenshotPipe[0], &signalled, 1);
+            saveScreenshot(engine);
+        });
+        std::signal(SIGUSR1, onScreenshotSignal);
+    }
 
     return application.exec();
 }

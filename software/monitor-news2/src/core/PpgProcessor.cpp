@@ -57,7 +57,20 @@ constexpr double AmplitudeOutlierFactor = 2.0;
 constexpr int64_t RespiratoryRateHoldSamples = 100;
 
 constexpr size_t PlethysmographyDisplaySamples = 50;
-constexpr size_t RespirationDisplaySamples = 75;
+// Curva de respiração: escala por envelope de pico (controle automático de ganho) em vez de
+// mín./máx. de uma janela, que saltava a cada valor extremo. O envelope sobe em ~1,5 s quando a
+// onda cresce e decai em ~10 s, com 40% de folga: subida instantânea achatava o topo de cada
+// onda que crescia; mais lenta, a curva cortava no limite. No sinal real a curva encosta no
+// limite ~5% do tempo, em picos curtos. Só começa após 10 s, fora do transitório do dedo.
+constexpr double RespirationDisplayAttackSeconds = 1.5;
+constexpr double RespirationDisplayReleaseSeconds = 10.0;
+constexpr double RespirationDisplayHeadroom = 1.4;
+constexpr int64_t RespirationDisplayWarmupSamples = 50;
+// FR estável: o espectro novo entra com peso 0,4 na média dos anteriores (memória de ~3
+// estimativas, ~12 s além da janela de 32 s) e a saída é a mediana das 3 últimas estimativas.
+// No registro real, a FR saltava entre picos vizinhos do espectro (8 → 23 → 12 → 34 irpm).
+constexpr double RespirationSpectrumUpdateWeight = 0.4;
+constexpr size_t RespiratoryRateMedianLength = 3;
 
 double median(std::vector<double> values)
 {
@@ -111,7 +124,7 @@ PpgProcessor::Output PpgProcessor::addSample(const PpgSample& sample)
     ++m_baselineCount;
     if(m_baselineCount == DecimationFactor)
     {
-        processRespirationSample();
+        processRespirationSample(output);
     }
     return output;
 }
@@ -206,7 +219,17 @@ void PpgProcessor::resetMeasurements()
     m_baselineModulation = RespiratoryModulation();
     m_amplitudeModulation = RespiratoryModulation();
     m_intervalModulation = RespiratoryModulation();
-    m_respirationDisplayWindow.clear();
+    for(int section = 0; section < 2; ++section)
+    {
+        m_respirationDisplayHighPass[section] =
+            Biquad::highPass(0.1, RespirationSampleRateHz);
+        m_respirationDisplayLowPass[section] = Biquad::lowPass(0.5, RespirationSampleRateHz);
+    }
+    m_isRespirationDisplayPrimed = false;
+    m_respirationDisplayEnvelope = 0.0;
+    m_respirationDisplayCount = 0;
+    m_averagedRespirationSpectrum.clear();
+    m_recentRespiratoryRates.clear();
     m_respiratoryRate.reset();
     m_respiratoryRateAt = 0;
 }
@@ -244,10 +267,10 @@ void PpgProcessor::processCardiacSample(const PpgSample& sample, Output& output)
         return;
     }
     m_amplitude = std::max(m_amplitude * AmplitudeDecayPerSample, std::fabs(filtered.infrared));
-    detectBeat(output);
+    detectBeat();
 }
 
-void PpgProcessor::detectBeat(Output& output)
+void PpgProcessor::detectBeat()
 {
     const size_t windowLength = 2 * PeakHalfWindow + 1;
     const size_t size = m_recentFiltered.size();
@@ -309,15 +332,10 @@ void PpgProcessor::detectBeat(Output& output)
         redLow = std::min(redLow, value.red);
         redHigh = std::max(redHigh, value.red);
     }
-    onBeat(peakPosition, infraredHigh - infraredLow, redHigh - redLow, output);
+    onBeat(peakPosition, infraredHigh - infraredLow, redHigh - redLow);
 }
 
-void PpgProcessor::onBeat(
-    double peakPosition,
-    double infraredAmplitude,
-    double redAmplitude,
-    Output& output
-)
+void PpgProcessor::onBeat(double peakPosition, double infraredAmplitude, double redAmplitude)
 {
     const double intervalSeconds = (peakPosition - *m_lastPeakPosition) / SampleRateHz;
     m_lastPeakPosition = peakPosition;
@@ -367,15 +385,10 @@ void PpgProcessor::onBeat(
         }
     }
 
-    addBeatModulations(peakPosition / SampleRateHz, relativeAmplitude, intervalSeconds, output);
+    addBeatModulations(peakPosition / SampleRateHz, relativeAmplitude, intervalSeconds);
 }
 
-void PpgProcessor::addBeatModulations(
-    double beatSeconds,
-    double amplitude,
-    double interval,
-    Output& output
-)
+void PpgProcessor::addBeatModulations(double beatSeconds, double amplitude, double interval)
 {
     if(!m_lastRegularBeat)
     {
@@ -390,21 +403,14 @@ void PpgProcessor::addBeatModulations(
     while(m_beatGridSeconds <= beatSeconds)
     {
         const double fraction = span > 0.0 ? (m_beatGridSeconds - previous.seconds) / span : 1.0;
-        const double amplitudeFiltered = m_amplitudeModulation.add(
-            previous.amplitude + (amplitude - previous.amplitude) * fraction
-        );
+        m_amplitudeModulation.add(previous.amplitude + (amplitude - previous.amplitude) * fraction);
         m_intervalModulation.add(previous.interval + (interval - previous.interval) * fraction);
-        // a modulação de amplitude é a que mostrou o padrão respiratório mais limpo no
-        // sensor real: é ela que a curva de respiração desenha
-        output.respirationDisplay.push_back(normalizeForDisplay(
-            amplitudeFiltered, m_respirationDisplayWindow, RespirationDisplaySamples
-        ));
         m_beatGridSeconds += BeatModulationStepSeconds;
     }
     m_lastRegularBeat = RegularBeat{beatSeconds, amplitude, interval};
 }
 
-void PpgProcessor::processRespirationSample()
+void PpgProcessor::processRespirationSample(Output& output)
 {
     const double baseline = m_baselineAccumulator / m_baselineCount;
     m_baselineAccumulator = 0.0;
@@ -416,6 +422,9 @@ void PpgProcessor::processRespirationSample()
         return;
     }
     m_baselineModulation.add(-baseline);
+    // A curva da tela é a linha de base, amostrada sempre a 5 Hz: a de amplitude chegava em
+    // rajadas a cada batimento e desenhava patamares e degraus.
+    output.respirationDisplay.push_back(respirationDisplayValue(-baseline));
     if(m_respirationIndex % RespirationEstimateEverySamples == 0)
     {
         estimateRespiratoryRate();
@@ -447,8 +456,11 @@ void PpgProcessor::estimateRespiratoryRate()
         && *currentHeartRate / *baselineRate < MinimumBeatsPerBreath;
     if(hasFewBeatsPerBreath)
     {
-        m_respiratoryRate = baselineRate;
-        m_respiratoryRateAt = m_respirationIndex;
+        if(publishRespiratoryRate(baselineSpectrum))
+        {
+            return;
+        }
+        expireHeldRate();
         return;
     }
 
@@ -473,14 +485,84 @@ void PpgProcessor::estimateRespiratoryRate()
         {
             power /= spectrumCount;
         }
-        if(const auto rate = breathRateFromSpectrum(fusedSpectrum))
+        if(publishRespiratoryRate(fusedSpectrum))
         {
-            m_respiratoryRate = rate;
-            m_respiratoryRateAt = m_respirationIndex;
             return;
         }
     }
     expireHeldRate();
+}
+
+bool PpgProcessor::publishRespiratoryRate(const std::vector<double>& spectrum)
+{
+    if(m_averagedRespirationSpectrum.size() != spectrum.size())
+    {
+        m_averagedRespirationSpectrum = spectrum;
+    }
+    else
+    {
+        for(size_t bin = 0; bin < spectrum.size(); ++bin)
+        {
+            double& averaged = m_averagedRespirationSpectrum[bin];
+            averaged += RespirationSpectrumUpdateWeight * (spectrum[bin] - averaged);
+        }
+    }
+    const std::optional<double> rate = breathRateFromSpectrum(m_averagedRespirationSpectrum);
+    if(!rate)
+    {
+        return false;
+    }
+    m_recentRespiratoryRates.push_back(*rate);
+    if(m_recentRespiratoryRates.size() > RespiratoryRateMedianLength)
+    {
+        m_recentRespiratoryRates.pop_front();
+    }
+    m_respiratoryRate = median({m_recentRespiratoryRates.begin(), m_recentRespiratoryRates.end()});
+    m_respiratoryRateAt = m_respirationIndex;
+    return true;
+}
+
+double PpgProcessor::respirationDisplayValue(double baseline)
+{
+    if(!m_isRespirationDisplayPrimed)
+    {
+        // a 1ª seção parte no nível do sinal; a 2ª recebe a saída da 1ª, que já é zero
+        m_respirationDisplayHighPass[0].settle(baseline);
+        m_isRespirationDisplayPrimed = true;
+    }
+    double filtered = m_respirationDisplayHighPass[1].process(
+        m_respirationDisplayHighPass[0].process(baseline)
+    );
+    filtered = m_respirationDisplayLowPass[1].process(
+        m_respirationDisplayLowPass[0].process(filtered)
+    );
+
+    ++m_respirationDisplayCount;
+    if(m_respirationDisplayCount <= RespirationDisplayWarmupSamples)
+    {
+        // o envelope parte do maior |x| do aquecimento, para não começar com ganho exagerado
+        m_respirationDisplayEnvelope = std::max(m_respirationDisplayEnvelope, std::fabs(filtered));
+        return 0.5;
+    }
+    const double magnitude = std::fabs(filtered);
+    if(magnitude > m_respirationDisplayEnvelope)
+    {
+        const double attack =
+            1.0 - std::exp(-1.0 / (RespirationDisplayAttackSeconds * RespirationSampleRateHz));
+        m_respirationDisplayEnvelope += attack * (magnitude - m_respirationDisplayEnvelope);
+    }
+    else
+    {
+        m_respirationDisplayEnvelope *=
+            std::exp(-1.0 / (RespirationDisplayReleaseSeconds * RespirationSampleRateHz));
+    }
+    if(m_respirationDisplayEnvelope <= 1e-9)
+    {
+        return 0.5;
+    }
+    const double scaled =
+        0.42 * filtered / (RespirationDisplayHeadroom * m_respirationDisplayEnvelope);
+    return std::clamp(0.5 + scaled, 0.03, 0.97);
 }
 
 std::vector<double> PpgProcessor::normalizedSpectrum(const std::deque<double>& window)
