@@ -29,7 +29,12 @@ public:
 
     // false em falha de I2C (sensor desconectado, por exemplo); as amostras lidas antes da
     // falha ficam em samples
-    bool readAvailableSamples(std::vector<PpgSample>& samples);
+    // fullRateSamples existe só pela interface comum com o Max30102Iio: aqui o chip já entrega
+    // 25 Hz (média de 4 na FIFO) e não há amostras de taxa maior
+    bool readAvailableSamples(
+        std::vector<PpgSample>& samples,
+        std::vector<PpgSample>* fullRateSamples = nullptr
+    );
 
 private:
     bool writeRegister(uint8_t reg, uint8_t value);

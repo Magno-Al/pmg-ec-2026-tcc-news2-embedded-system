@@ -12,13 +12,15 @@ option(MONITOR_NEWS2_HARDWARE "Usa os sensores reais em vez dos mocks" OFF)
 set(MONITOR_NEWS2_SENSOR_BACKEND "i2cdev" CACHE STRING "Acesso ao MAX30102: i2cdev ou iio")
 set_property(CACHE MONITOR_NEWS2_SENSOR_BACKEND PROPERTY STRINGS i2cdev iio)
 # Quem calcula FC, SpO₂ e FR a partir do PPG: "processor" (PpgProcessor deste app), "pipeline"
-# (método do ../ppg-pipeline: MSPTD + Smart Fusion) ou "hybrid" (FC e SpO₂ do pipeline, FR do
-# PpgProcessor). Contato e curvas são sempre do PpgProcessor. O padrão segue a comparação na
-# BIDMC e no sensor real (../ppg-pipeline/scripts/comparison): o pipeline erra menos a FC, e o
-# PpgProcessor a FR, sem o falso 6–7 irpm das ondas de Mayer.
+# (método do ../ppg-pipeline: MSPTD + Smart Fusion), "hybrid" (FC e SpO₂ do pipeline, FR do
+# PpgProcessor) ou "refined" (PpgProcessor, com a FC refinada pelo pipeline sobre as amostras de
+# 100 Hz do driver IIO; exige MONITOR_NEWS2_SENSOR_BACKEND=iio). Contato e curvas são sempre do
+# PpgProcessor. Comparação na BIDMC e no sensor real (../ppg-pipeline/scripts/comparison): o
+# pipeline erra menos a FC, e o PpgProcessor a FR, sem o falso 6–7 irpm das ondas de Mayer.
 set(MONITOR_NEWS2_PPG_ALGORITHM "hybrid" CACHE STRING
-    "Cálculo de FC/SpO2/FR: processor, pipeline ou hybrid")
-set_property(CACHE MONITOR_NEWS2_PPG_ALGORITHM PROPERTY STRINGS processor pipeline hybrid)
+    "Cálculo de FC/SpO2/FR: processor, pipeline, hybrid ou refined")
+set_property(CACHE MONITOR_NEWS2_PPG_ALGORITHM
+    PROPERTY STRINGS processor pipeline hybrid refined)
 
 add_subdirectory(../ppg-pipeline ppg-pipeline)
 
@@ -69,8 +71,15 @@ elseif(MONITOR_NEWS2_PPG_ALGORITHM STREQUAL "hybrid")
         MONITOR_NEWS2_PPG_PIPELINE
         MONITOR_NEWS2_PPG_HYBRID
     )
+elseif(MONITOR_NEWS2_PPG_ALGORITHM STREQUAL "refined")
+    if(MONITOR_NEWS2_HARDWARE AND NOT MONITOR_NEWS2_SENSOR_BACKEND STREQUAL "iio")
+        message(FATAL_ERROR "refined usa as amostras de 100 Hz do driver IIO: "
+                            "MONITOR_NEWS2_SENSOR_BACKEND precisa ser iio")
+    endif()
+    target_compile_definitions(monitor_core PUBLIC MONITOR_NEWS2_PPG_REFINED_HEART_RATE)
 elseif(NOT MONITOR_NEWS2_PPG_ALGORITHM STREQUAL "processor")
-    message(FATAL_ERROR "MONITOR_NEWS2_PPG_ALGORITHM deve ser processor, pipeline ou hybrid")
+    message(FATAL_ERROR
+        "MONITOR_NEWS2_PPG_ALGORITHM deve ser processor, pipeline, hybrid ou refined")
 endif()
 message(STATUS "FC/SpO2/FR via ${MONITOR_NEWS2_PPG_ALGORITHM}")
 

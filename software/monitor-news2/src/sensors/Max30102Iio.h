@@ -32,7 +32,14 @@ public:
     // vez de consultar periodicamente
     int notificationDescriptor() const { return m_fileDescriptor; }
 
-    bool readAvailableSamples(std::vector<PpgSample>& samples);
+    // samples: 25 Hz (média de 4), como o PpgProcessor espera; fullRateSamples, se dado,
+    // recebe também as amostras de 100 Hz do driver, sem a média
+    bool readAvailableSamples(
+        std::vector<PpgSample>& samples,
+        std::vector<PpgSample>* fullRateSamples = nullptr
+    );
+
+    static constexpr int FullRateHz = 100;
 
 private:
     struct ChannelFormat

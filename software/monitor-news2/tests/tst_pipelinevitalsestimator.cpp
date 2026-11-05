@@ -8,7 +8,7 @@ namespace
 
 void feed(PipelineVitalsEstimator& estimator, SyntheticPpg& signal, double seconds)
 {
-    const int sampleCount = int(seconds * PpgProcessor::SampleRateHz);
+    const int sampleCount = int(seconds * signal.sampleRateHz);
     for(int index = 0; index < sampleCount; ++index)
     {
         estimator.addSample(signal.next());
@@ -30,6 +30,7 @@ private slots:
     void test_heartRateMatchesPulse();
     void test_oxygenSaturationFollowsLinearCalibration();
     void test_resetDiscardsTheCurrentWindow();
+    void test_heartRateOnlyAtOneHundredHertz();
 };
 
 void PipelineVitalsEstimatorTest::test_noReadingBeforeThirtySeconds()
@@ -107,6 +108,23 @@ void PipelineVitalsEstimatorTest::test_resetDiscardsTheCurrentWindow()
     feed(estimator, signal, 29.0);
 
     QVERIFY(!estimator.heartRate());
+}
+
+void PipelineVitalsEstimatorTest::test_heartRateOnlyAtOneHundredHertz()
+{
+    // modo usado para refinar a FC com as amostras de 100 Hz do IIO: só FC, mais precisa
+    PipelineVitalsEstimator estimator(100, PipelineVitalsEstimator::Outputs::HeartRateOnly);
+    SyntheticPpg signal;
+    signal.sampleRateHz = 100.0;
+    signal.heartRate = 73.0;
+
+    feed(estimator, signal, 40.0);
+
+    QVERIFY(estimator.preciseHeartRate());
+    QVERIFY2(std::abs(*estimator.preciseHeartRate() - 73.0) <= 1.0,
+             qPrintable(QString::number(*estimator.preciseHeartRate())));
+    QVERIFY(!estimator.oxygenSaturation());
+    QVERIFY(!estimator.respiratoryRate());
 }
 
 QTEST_APPLESS_MAIN(PipelineVitalsEstimatorTest)

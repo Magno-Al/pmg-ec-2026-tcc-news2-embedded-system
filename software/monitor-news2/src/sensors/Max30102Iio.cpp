@@ -16,7 +16,7 @@ namespace
 const QString IioDevicesPath = QStringLiteral("/sys/bus/iio/devices");
 const QByteArray DriverName = QByteArrayLiteral("max30102");
 // 100 amostras/s do driver -> 25 amostras/s do PpgProcessor
-constexpr int DecimationFactor = 4;
+constexpr int DecimationFactor = Max30102Iio::FullRateHz / 25;
 // 2,5 s a 100 Hz; o padrão do kernel é 2 amostras, que transbordaria num engasgo da interface
 constexpr int KernelBufferLength = 256;
 constexpr int BytesPerScan = 8;
@@ -95,7 +95,10 @@ void Max30102Iio::close()
     writeAttribute(QStringLiteral("buffer/enable"), "0");
 }
 
-bool Max30102Iio::readAvailableSamples(std::vector<PpgSample>& samples)
+bool Max30102Iio::readAvailableSamples(
+    std::vector<PpgSample>& samples,
+    std::vector<PpgSample>* fullRateSamples
+)
 {
     uint8_t raw[ScansPerRead * BytesPerScan];
     while(true)
@@ -123,8 +126,14 @@ bool Max30102Iio::readAvailableSamples(std::vector<PpgSample>& samples)
                     | (uint32_t(word[2]) << 8) | word[3];
                 return (bigEndian >> format.shift) & format.mask;
             };
-            m_redAccumulator += channelValue(m_redFormat);
-            m_infraredAccumulator += channelValue(m_infraredFormat);
+            const uint32_t red = channelValue(m_redFormat);
+            const uint32_t infrared = channelValue(m_infraredFormat);
+            if(fullRateSamples)
+            {
+                fullRateSamples->push_back({red, infrared});
+            }
+            m_redAccumulator += red;
+            m_infraredAccumulator += infrared;
             ++m_accumulatedCount;
             if(m_accumulatedCount == DecimationFactor)
             {

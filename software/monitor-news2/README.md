@@ -37,6 +37,13 @@ O cálculo de FC, SpO₂ e FR também é escolhido na compilação, com
 - `hybrid` (padrão): FC e SpO₂ pelo método do `../ppg-pipeline` (MSPTD), FR pelo `PpgProcessor`.
 - `pipeline`: os três pelo `../ppg-pipeline` (FR pelo Smart Fusion de Karlen).
 - `processor`: os três pelo `PpgProcessor` deste app.
+- `refined` (padrão da imagem do Buildroot, exige `iio`): SpO₂ e FR pelo `PpgProcessor`; a FC
+  começa pelo `PpgProcessor` (~5 s) e passa a vir do `../ppg-pipeline` sobre as amostras de
+  100 Hz do driver IIO, sem a média de 4, assim que houver 30 s de sinal (~35 s). Na BIDMC a FC
+  do pipeline erra 0,57 bpm a 125 Hz contra 1,49 bpm a 25 Hz.
+
+Em todos os modos, FC e FR são corrigidas pela taxa real do sensor, medida depois de 20 s de
+leitura (o oscilador do MAX30102 fica ~1% abaixo da taxa nominal).
 
 O contato do dedo e as curvas da tela são sempre do `PpgProcessor`. O padrão segue a comparação
 na BIDMC (`../ppg-pipeline/scripts/comparison`): o pipeline erra menos a FC, e o `PpgProcessor`

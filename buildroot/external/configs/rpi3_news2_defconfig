@@ -159,9 +159,10 @@ BR2_PACKAGE_MONITOR_NEWS2=y
 # acesso ao MAX30102 pelo driver IIO do kernel; troque por
 # BR2_PACKAGE_MONITOR_NEWS2_SENSOR_I2CDEV=y para o acesso direto por i2c-dev
 BR2_PACKAGE_MONITOR_NEWS2_SENSOR_IIO=y
-# FC/SpO2/FR pelo PpgProcessor do app; troque por ..._PPG_HYBRID=y ou ..._PPG_PIPELINE=y
-# para usar o metodo do ppg-pipeline (comparacao em software/ppg-pipeline/scripts/comparison)
-BR2_PACKAGE_MONITOR_NEWS2_PPG_PROCESSOR=y
+# SpO2/FR pelo PpgProcessor do app e FC refinada pelo ppg-pipeline sobre as amostras de
+# 100 Hz do IIO; outras opcoes: ..._PPG_PROCESSOR, ..._PPG_HYBRID, ..._PPG_PIPELINE
+# (comparacao em software/ppg-pipeline/scripts/comparison)
+BR2_PACKAGE_MONITOR_NEWS2_PPG_REFINED=y
 
 # ---- [16] Imagem -----------------------------------------------------------
 BR2_TARGET_ROOTFS_EXT2=y

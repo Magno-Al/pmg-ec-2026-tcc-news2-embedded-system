@@ -24,9 +24,11 @@ using Max30102Device = Max30102;
 // a cada 40 ms, ou o driver IIO do kernel, que avisa por evento quando há amostras. O resto é
 // igual: as curvas vão para os LiveSignalBuffer a cada amostra e FC/SpO₂/FR são publicadas
 // uma vez por segundo, com 0 quando ainda não há leitura. MONITOR_NEWS2_PPG_ALGORITHM decide
-// quem calcula: PpgProcessor, PipelineVitalsEstimator ou os dois (FC/SpO₂ do pipeline, FR do
-// PpgProcessor); o contato do dedo e as curvas são sempre do PpgProcessor. A temperatura vem do
-// DS18B20 (Ds18b20Thermometer), a cada 10 s, independente do dedo.
+// quem calcula: PpgProcessor, PipelineVitalsEstimator, os dois (FC/SpO₂ do pipeline, FR do
+// PpgProcessor) ou o PpgProcessor com a FC refinada pelo pipeline sobre as amostras de 100 Hz
+// do IIO; o contato do dedo e as curvas são sempre do PpgProcessor. FC e FR são corrigidas pela
+// taxa real do sensor (~1% abaixo da nominal). A temperatura vem do DS18B20
+// (Ds18b20Thermometer), a cada 10 s, independente do dedo.
 class Max30102VitalSignsSource : public VitalSignsSource
 {
     Q_OBJECT
@@ -42,6 +44,8 @@ private:
     void publishReading();
     void onFingerContactChanged();
     void handleSensorFailure(const QString& reason);
+    void trackSampleRate(size_t newSampleCount);
+    double sampleRateCorrection() const;
 
     Max30102Device m_sensor;
     std::unique_ptr<QSocketNotifier> m_dataNotifier;
@@ -50,6 +54,14 @@ private:
 #ifdef MONITOR_NEWS2_PPG_PIPELINE
     PipelineVitalsEstimator m_pipeline;
 #endif
+#ifdef MONITOR_NEWS2_PPG_REFINED_HEART_RATE
+    PipelineVitalsEstimator m_refinedHeartRate{
+        Max30102Iio::FullRateHz, PipelineVitalsEstimator::Outputs::HeartRateOnly
+    };
+#endif
+    // taxa real: amostras (25 Hz) contadas desde o primeiro lote após abrir o sensor
+    QElapsedTimer m_sampleRateClock;
+    long m_samplesSinceFirstBatch = 0;
     QTimer m_pollTimer;
     QTimer m_publishTimer;
     QTimer m_reconnectTimer;

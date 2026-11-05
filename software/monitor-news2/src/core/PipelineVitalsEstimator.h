@@ -22,13 +22,26 @@
 class PipelineVitalsEstimator
 {
 public:
-    explicit PipelineVitalsEstimator(int sampleRateHz = int(PpgProcessor::SampleRateHz));
+    enum class Outputs
+    {
+        All,
+        // só FC: a 100 Hz o MSPTD custa ~19 ms por janela na Pi 3, e SpO₂/FR não ganham com a
+        // taxa maior
+        HeartRateOnly
+    };
+
+    explicit PipelineVitalsEstimator(
+        int sampleRateHz = int(PpgProcessor::SampleRateHz),
+        Outputs outputs = Outputs::All
+    );
 
     // recomeça do zero (dedo recolocado): o buffer de 60 s não deve misturar dois contatos
     void reset();
     void addSample(const PpgSample& sample);
 
-    std::optional<int> heartRate() const { return m_heartRate; }
+    std::optional<int> heartRate() const;
+    // FC sem arredondar, para quem ainda vai corrigir pela taxa real do sensor
+    std::optional<double> preciseHeartRate() const { return m_heartRate; }
     std::optional<int> oxygenSaturation() const { return m_oxygenSaturation; }
     std::optional<int> respiratoryRate() const { return m_respiratoryRate; }
 
@@ -40,11 +53,12 @@ private:
     static constexpr bool IsRawIntensity = true;
 
     int m_sampleRateHz;
+    Outputs m_outputs;
     std::optional<PPGBandpassFilter> m_redFilter;
     std::optional<PPGBandpassFilter> m_infraredFilter;
     PPGBuffer m_buffer;
     size_t m_heartRateWindowSamples = 0;
-    std::optional<int> m_heartRate;
+    std::optional<double> m_heartRate;
     std::optional<int> m_oxygenSaturation;
     std::optional<int> m_respiratoryRate;
 };

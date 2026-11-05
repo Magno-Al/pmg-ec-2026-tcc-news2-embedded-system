@@ -16,15 +16,16 @@ public:
     double respiratoryRate = 15.0;
     double ratio = 0.6;
     double noiseCounts = 30.0;
+    double sampleRateHz = PpgProcessor::SampleRateHz;
 
     PpgSample next()
     {
-        const double seconds = m_sampleIndex / PpgProcessor::SampleRateHz;
+        const double seconds = m_sampleIndex / sampleRateHz;
         ++m_sampleIndex;
         const double breath = std::sin(2.0 * M_PI * respiratoryRate / 60.0 * seconds);
         const double instantRate = heartRate * (1.0 + 0.04 * breath);
         m_cardiacPhase = std::fmod(m_cardiacPhase + instantRate / 60.0
-                                   / PpgProcessor::SampleRateHz, 1.0);
+                                   / sampleRateHz, 1.0);
 
         const double infraredDc = 120000.0 * (1.0 + 0.004 * breath);
         const double infraredPerfusion = 0.01 * (1.0 + 0.15 * breath);

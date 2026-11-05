@@ -22,10 +22,16 @@ std::optional<int> rounded(std::optional<double> value)
 
 }
 
-PipelineVitalsEstimator::PipelineVitalsEstimator(int sampleRateHz)
+PipelineVitalsEstimator::PipelineVitalsEstimator(int sampleRateHz, Outputs outputs)
     : m_sampleRateHz(sampleRateHz)
+    , m_outputs(outputs)
 {
     reset();
+}
+
+std::optional<int> PipelineVitalsEstimator::heartRate() const
+{
+    return rounded(m_heartRate);
 }
 
 void PipelineVitalsEstimator::reset()
@@ -79,7 +85,11 @@ void PipelineVitalsEstimator::evaluateCardiacWindowWhileFilling()
     m_heartRate.reset();
     if(quality.usable_for_hr)
     {
-        m_heartRate = rounded(calculate_heart_rate(heartRateWindow, m_sampleRateHz).bpm);
+        m_heartRate = calculate_heart_rate(heartRateWindow, m_sampleRateHz).bpm;
+    }
+    if(m_outputs == Outputs::HeartRateOnly)
+    {
+        return;
     }
     m_oxygenSaturation.reset();
     if(quality.usable_for_spo2)
@@ -98,7 +108,11 @@ void PipelineVitalsEstimator::evaluateWindow()
     m_heartRate.reset();
     if(quality.usable_for_hr)
     {
-        m_heartRate = rounded(calculate_heart_rate(heartRateWindow, m_sampleRateHz).bpm);
+        m_heartRate = calculate_heart_rate(heartRateWindow, m_sampleRateHz).bpm;
+    }
+    if(m_outputs == Outputs::HeartRateOnly)
+    {
+        return;
     }
 
     m_oxygenSaturation.reset();

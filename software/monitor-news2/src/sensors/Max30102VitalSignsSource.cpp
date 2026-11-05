@@ -4,6 +4,9 @@
 
 #include <QDebug>
 
+#include <algorithm>
+#include <cmath>
+#include <optional>
 #include <vector>
 
 namespace
@@ -14,6 +17,17 @@ constexpr int PublishIntervalMilliseconds = 1000;
 constexpr int ReconnectIntervalMilliseconds = 2000;
 // no IIO um sensor desconectado não dá erro, as interrupções só param de chegar
 constexpr int StalledSensorMilliseconds = 3000;
+// O oscilador do MAX30102 fica ~1% abaixo da taxa nominal (24,7 Hz medidos contra 25), o que
+// desloca FC e FR na mesma proporção. A taxa é medida pela inclinação amostras × tempo a partir
+// do primeiro lote, o que elimina o atraso fixo de entrega do IIO (~300 ms), e só é aplicada
+// depois de 20 s de medição; ±5% é o limite de plausibilidade.
+constexpr qint64 SampleRateMeasureMilliseconds = 20000;
+constexpr double MaximumSampleRateCorrection = 0.05;
+
+int roundedOrZero(std::optional<double> value)
+{
+    return value ? int(std::lround(*value)) : 0;
+}
 
 }
 
@@ -56,6 +70,8 @@ void Max30102VitalSignsSource::openSensor()
     }
     m_processor = PpgProcessor();
     m_sinceLastSample.start();
+    m_sampleRateClock.invalidate();
+    m_samplesSinceFirstBatch = 0;
     const int descriptor = m_sensor.notificationDescriptor();
     if(descriptor >= 0)
     {
@@ -74,10 +90,16 @@ void Max30102VitalSignsSource::openSensor()
 void Max30102VitalSignsSource::poll()
 {
     std::vector<PpgSample> samples;
+#ifdef MONITOR_NEWS2_PPG_REFINED_HEART_RATE
+    std::vector<PpgSample> fullRateSamples;
+    const bool isHealthy = m_sensor.readAvailableSamples(samples, &fullRateSamples);
+#else
     const bool isHealthy = m_sensor.readAvailableSamples(samples);
+#endif
     if(!samples.empty())
     {
         m_sinceLastSample.restart();
+        trackSampleRate(samples.size());
     }
 
     for(const PpgSample& sample : samples)
@@ -105,10 +127,45 @@ void Max30102VitalSignsSource::poll()
         }
     }
 
+#ifdef MONITOR_NEWS2_PPG_REFINED_HEART_RATE
+    if(m_processor.hasFingerContact())
+    {
+        for(const PpgSample& sample : fullRateSamples)
+        {
+            m_refinedHeartRate.addSample(sample);
+        }
+    }
+#endif
+
     if(!isHealthy)
     {
         handleSensorFailure(m_sensor.errorString());
     }
+}
+
+void Max30102VitalSignsSource::trackSampleRate(size_t newSampleCount)
+{
+    if(!m_sampleRateClock.isValid())
+    {
+        m_sampleRateClock.start();
+        return;
+    }
+    m_samplesSinceFirstBatch += long(newSampleCount);
+}
+
+double Max30102VitalSignsSource::sampleRateCorrection() const
+{
+    if(!m_sampleRateClock.isValid()
+       || m_sampleRateClock.elapsed() < SampleRateMeasureMilliseconds)
+    {
+        return 1.0;
+    }
+    const double measuredRateHz =
+        m_samplesSinceFirstBatch / (m_sampleRateClock.elapsed() / 1000.0);
+    const double correction = measuredRateHz / PpgProcessor::SampleRateHz;
+    return std::clamp(
+        correction, 1.0 - MaximumSampleRateCorrection, 1.0 + MaximumSampleRateCorrection
+    );
 }
 
 void Max30102VitalSignsSource::handleSensorFailure(const QString& reason)
@@ -146,10 +203,36 @@ void Max30102VitalSignsSource::publishReading()
     const auto& cardiacEstimator = m_processor;
     const auto& respiratoryEstimator = m_processor;
 #endif
+    std::optional<double> heartRate;
+    if(const auto value = cardiacEstimator.heartRate())
+    {
+        heartRate = *value;
+    }
+#ifdef MONITOR_NEWS2_PPG_REFINED_HEART_RATE
+    // a FC do pipeline a 100 Hz substitui a do PpgProcessor assim que fecha (~35 s de contato)
+    if(const auto refined = m_refinedHeartRate.preciseHeartRate())
+    {
+        heartRate = refined;
+    }
+#endif
+    std::optional<double> respiratoryRate;
+    if(const auto value = respiratoryEstimator.respiratoryRate())
+    {
+        respiratoryRate = *value;
+    }
+    const double correction = sampleRateCorrection();
+    if(heartRate)
+    {
+        *heartRate *= correction;
+    }
+    if(respiratoryRate)
+    {
+        *respiratoryRate *= correction;
+    }
     emit pulseOximetryMeasured(
-        cardiacEstimator.heartRate().value_or(0),
+        roundedOrZero(heartRate),
         cardiacEstimator.oxygenSaturation().value_or(0),
-        respiratoryEstimator.respiratoryRate().value_or(0)
+        roundedOrZero(respiratoryRate)
     );
 }
 
@@ -158,6 +241,9 @@ void Max30102VitalSignsSource::onFingerContactChanged()
     const bool hasFingerContact = m_processor.hasFingerContact();
 #ifdef MONITOR_NEWS2_PPG_PIPELINE
     m_pipeline.reset();
+#endif
+#ifdef MONITOR_NEWS2_PPG_REFINED_HEART_RATE
+    m_refinedHeartRate.reset();
 #endif
     emit fingerContactChanged(hasFingerContact);
     if(hasFingerContact)

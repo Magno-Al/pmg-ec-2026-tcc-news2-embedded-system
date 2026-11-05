@@ -58,6 +58,14 @@ config BR2_PACKAGE_MONITOR_NEWS2_PPG_PIPELINE
 config BR2_PACKAGE_MONITOR_NEWS2_PPG_PROCESSOR
 	bool "PpgProcessor do app"
 
+config BR2_PACKAGE_MONITOR_NEWS2_PPG_REFINED
+	bool "PpgProcessor + FC refinada a 100 Hz pelo ppg-pipeline"
+	depends on BR2_PACKAGE_MONITOR_NEWS2_SENSOR_IIO
+	help
+	  SpO2 e FR do PpgProcessor; a FC passa a vir do ppg-pipeline
+	  (MSPTD) sobre as amostras de 100 Hz do driver IIO assim que
+	  houver 30 s de sinal. Exige o acesso IIO.
+
 endchoice
 
 endif

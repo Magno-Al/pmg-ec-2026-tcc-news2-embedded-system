@@ -106,7 +106,10 @@ void Max30102::close()
     m_fileDescriptor = -1;
 }
 
-bool Max30102::readAvailableSamples(std::vector<PpgSample>& samples)
+bool Max30102::readAvailableSamples(
+    std::vector<PpgSample>& samples,
+    std::vector<PpgSample>*
+)
 {
     uint8_t pointers[3] = {};
     if(!readRegisters(RegisterFifoWritePointer, pointers, sizeof(pointers)))
