@@ -25,11 +25,19 @@ MAX30102. O pacote do Buildroot (`buildroot/external/package/monitor-news2`) já
 PC o padrão continua sendo o mock. A forma de acesso ao sensor também é escolhida na compilação,
 com `-DMONITOR_NEWS2_SENSOR_BACKEND` (no Buildroot, opção "acesso ao MAX30102" do pacote):
 
-- `i2cdev` (padrão): o app configura o chip e lê a FIFO pela `/dev/i2c-1` a cada 40 ms.
-- `iio`: driver do kernel (`max30102.ko`, overlay `i2c-sensor,max30102,int_pin=17`), com
-  leitura por evento em `/dev/iio:device0`. Exige o INT do sensor no GPIO 17.
+- `i2cdev` (padrão no CMake): o app configura o chip e lê a FIFO pela `/dev/i2c-1` a cada
+  40 ms. Conta as amostras que o chip descarta com a FIFO cheia (aviso no log e coluna
+  `amostras_perdidas` do traço).
+- `iio` (padrão da imagem do Buildroot): driver do kernel (`max30102.ko`, overlay
+  `i2c-sensor,max30102,int_pin=17`), com leitura por evento em `/dev/iio:device0`. Exige o INT
+  do sensor no GPIO 17.
 
-A comparação entre os dois está em `../bringup/max30102/estudo-comparativo`.
+Os dois deixam o chip em 400 Hz com média de 4 na FIFO, ou seja, 100 amostras/s. O app entrega
+essas amostras sem alteração ao ppg-pipeline no modo `refined` e a média de cada 4 (25 Hz) ao
+`PpgProcessor`. A comparação entre os dois acessos está em
+`../bringup/max30102/estudo-comparativo`. Ela foi feita quando o i2c-dev ainda configurava o chip
+para 25 Hz. O roteiro para validar o i2c-dev a 100 Hz no equipamento e torná-lo o padrão está em
+`../bringup/max30102/TESTE_I2CDEV_100HZ.md`.
 
 O cálculo de FC, SpO₂ e FR também é escolhido na compilação, com
 `-DMONITOR_NEWS2_PPG_ALGORITHM` (no Buildroot, opção "cálculo de FC/SpO2/FR" do pacote):
@@ -37,9 +45,10 @@ O cálculo de FC, SpO₂ e FR também é escolhido na compilação, com
 - `hybrid` (padrão): FC e SpO₂ pelo método do `../ppg-pipeline` (MSPTD), FR pelo `PpgProcessor`.
 - `pipeline`: os três pelo `../ppg-pipeline` (FR pelo Smart Fusion de Karlen).
 - `processor`: os três pelo `PpgProcessor` deste app.
-- `refined` (padrão da imagem do Buildroot, exige `iio`): SpO₂ e FR pelo `PpgProcessor`; a FC
-  começa pelo `PpgProcessor` (~5 s) e passa a vir do `../ppg-pipeline` sobre as amostras de
-  100 Hz do driver IIO, sem a média de 4, assim que houver 30 s de sinal (~35 s). Na BIDMC a FC
+- `refined` (padrão da imagem do Buildroot, com `iio` ou `i2cdev`): SpO₂ e FR pelo
+  `PpgProcessor`; a FC começa pelo `PpgProcessor` (~5 s) e passa a vir do `../ppg-pipeline`
+  sobre as amostras de 100 Hz do sensor, sem a média de 4, assim que houver 30 s de sinal
+  (~35 s). Na BIDMC a FC
   do pipeline erra 0,57 bpm a 125 Hz contra 1,49 bpm a 25 Hz.
 
 Em todos os modos, FC e FR são corrigidas pela taxa real do sensor, medida depois de 20 s de

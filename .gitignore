@@ -7,11 +7,12 @@ buildroot/local.mk
 __pycache__/
 *.pyc
 .venv/
+.vscode/
 
 # segredo: PSK de wifi em texto claro
 buildroot/external/rootfs-overlay/etc/wpa_supplicant.conf
 # app: build local e configuração pessoal do Qt Creator
-software/monitor-news2/build/
+software/monitor-news2/build*/
 .qtcreator/
 *.user
 

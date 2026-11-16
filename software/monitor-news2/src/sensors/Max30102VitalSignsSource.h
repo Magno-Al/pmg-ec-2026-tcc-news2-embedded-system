@@ -28,9 +28,10 @@ using Max30102Device = Max30102;
 // uma vez por segundo, com 0 quando ainda não há leitura. MONITOR_NEWS2_PPG_ALGORITHM decide
 // quem calcula: PpgProcessor, PipelineVitalsEstimator, os dois (FC/SpO₂ do pipeline, FR do
 // PpgProcessor) ou o PpgProcessor com a FC refinada pelo pipeline sobre as amostras de 100 Hz
-// do IIO; o contato do dedo e as curvas são sempre do PpgProcessor. FC e FR são corrigidas pela
-// taxa real do sensor (~1% abaixo da nominal). A temperatura vem do DS18B20
-// (Ds18b20Thermometer), a cada 10 s, independente do dedo.
+// do sensor (os dois acessos entregam 100 Hz e a média de 4, a 25 Hz); o contato do dedo e as
+// curvas são sempre do PpgProcessor. FC e FR são corrigidas pela taxa real do sensor (~1% abaixo
+// da nominal). Amostras perdidas na FIFO do chip (só o i2c-dev as conta) vão para o log e para
+// o traço. A temperatura vem do DS18B20 (Ds18b20Thermometer), a cada 10 s, independente do dedo.
 class Max30102VitalSignsSource : public VitalSignsSource
 {
     Q_OBJECT
@@ -58,9 +59,11 @@ private:
 #endif
 #ifdef MONITOR_NEWS2_PPG_REFINED_HEART_RATE
     PipelineVitalsEstimator m_refinedHeartRate{
-        Max30102Iio::FullRateHz, PipelineVitalsEstimator::Outputs::HeartRateOnly
+        Max30102Device::FullRateHz, PipelineVitalsEstimator::Outputs::HeartRateOnly
     };
 #endif
+    // último total de amostras perdidas já avisado no log
+    uint64_t m_reportedLostSampleCount = 0;
     // depuração: com MONITOR_NEWS2_TRACE=<arquivo>, grava cada amostra de 25 Hz (bruto, contato,
     // valores das curvas) e cada publicação (FC/SpO₂/FR e suas fontes)
     std::unique_ptr<QFile> m_traceFile;

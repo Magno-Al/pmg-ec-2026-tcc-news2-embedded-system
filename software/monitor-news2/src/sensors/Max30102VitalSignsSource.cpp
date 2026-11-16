@@ -56,9 +56,10 @@ void Max30102VitalSignsSource::start()
         if(m_traceFile->open(QIODevice::WriteOnly | QIODevice::Text))
         {
             m_trace = std::make_unique<QTextStream>(m_traceFile.get());
-            *m_trace << "tipo,ms,a,b,c,d,e,f,g\n"
+            *m_trace << "tipo,ms,a,b,c,d,e,f,g,h\n"
                      << "# s,ms,red,ir,contato,curva_pleth,curva_resp(;)\n"
-                     << "# p,ms,fc,spo2,fr,fc_processor,fc_refinada,fr_bruta,correcao\n";
+                     << "# p,ms,fc,spo2,fr,fc_processor,fc_refinada,fr_bruta,correcao,"
+                        "amostras_perdidas\n";
             m_traceClock.start();
             qInfo().noquote() << "traço em" << tracePath;
         }
@@ -114,6 +115,14 @@ void Max30102VitalSignsSource::poll()
     {
         m_sinceLastSample.restart();
         trackSampleRate(samples.size());
+    }
+    if(m_sensor.lostSampleCount() > m_reportedLostSampleCount)
+    {
+        qWarning().noquote() << "MAX30102: FIFO do chip transbordou,"
+                             << m_sensor.lostSampleCount() - m_reportedLostSampleCount
+                             << "amostras de 100 Hz perdidas (total"
+                             << m_sensor.lostSampleCount() << ")";
+        m_reportedLostSampleCount = m_sensor.lostSampleCount();
     }
 
     for(const PpgSample& sample : samples)
@@ -274,7 +283,7 @@ void Max30102VitalSignsSource::publishReading()
                  << roundedOrZero(respiratoryRate) << ','
                  << m_processor.heartRate().value_or(0) << ',' << refined << ','
                  << respiratoryEstimator.respiratoryRate().value_or(0) << ',' << correction
-                 << '\n';
+                 << ',' << m_sensor.lostSampleCount() << '\n';
         m_trace->flush();
     }
 }

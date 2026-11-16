@@ -14,7 +14,7 @@ set_property(CACHE MONITOR_NEWS2_SENSOR_BACKEND PROPERTY STRINGS i2cdev iio)
 # Quem calcula FC, SpO₂ e FR a partir do PPG: "processor" (PpgProcessor deste app), "pipeline"
 # (método do ../ppg-pipeline: MSPTD + Smart Fusion), "hybrid" (FC e SpO₂ do pipeline, FR do
 # PpgProcessor) ou "refined" (PpgProcessor, com a FC refinada pelo pipeline sobre as amostras de
-# 100 Hz do driver IIO; exige MONITOR_NEWS2_SENSOR_BACKEND=iio). Contato e curvas são sempre do
+# 100 Hz do sensor, entregues pelos dois acessos, i2cdev e iio). Contato e curvas são sempre do
 # PpgProcessor. Comparação na BIDMC e no sensor real (../ppg-pipeline/scripts/comparison): o
 # pipeline erra menos a FC, e o PpgProcessor a FR, sem o falso 6–7 irpm das ondas de Mayer.
 set(MONITOR_NEWS2_PPG_ALGORITHM "hybrid" CACHE STRING
@@ -48,6 +48,11 @@ add_library(monitor_core STATIC
     src/core/LiveSignalBuffer.cpp
     src/core/PipelineVitalsEstimator.h
     src/core/PipelineVitalsEstimator.cpp
+    src/core/PpgDecimator.h
+    src/core/PpgDecimator.cpp
+    # lógica da FIFO do MAX30102 sem acesso ao barramento: entra também no PC, para os testes
+    src/sensors/Max30102Fifo.h
+    src/sensors/Max30102Fifo.cpp
     src/sensors/Ds18b20Thermometer.h
     src/sensors/Ds18b20Thermometer.cpp
     src/devices/VitalSignsSource.h
@@ -72,10 +77,6 @@ elseif(MONITOR_NEWS2_PPG_ALGORITHM STREQUAL "hybrid")
         MONITOR_NEWS2_PPG_HYBRID
     )
 elseif(MONITOR_NEWS2_PPG_ALGORITHM STREQUAL "refined")
-    if(MONITOR_NEWS2_HARDWARE AND NOT MONITOR_NEWS2_SENSOR_BACKEND STREQUAL "iio")
-        message(FATAL_ERROR "refined usa as amostras de 100 Hz do driver IIO: "
-                            "MONITOR_NEWS2_SENSOR_BACKEND precisa ser iio")
-    endif()
     target_compile_definitions(monitor_core PUBLIC MONITOR_NEWS2_PPG_REFINED_HEART_RATE)
 elseif(NOT MONITOR_NEWS2_PPG_ALGORITHM STREQUAL "processor")
     message(FATAL_ERROR
@@ -177,3 +178,5 @@ add_monitor_test(tst_trendtracker)
 add_monitor_test(tst_ppgprocessor)
 add_monitor_test(tst_pipelinevitalsestimator)
 add_monitor_test(tst_ds18b20thermometer)
+add_monitor_test(tst_max30102fifo)
+add_monitor_test(tst_ppgdecimator)

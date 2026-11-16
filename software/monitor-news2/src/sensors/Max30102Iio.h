@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/PpgDecimator.h"
 #include "core/PpgProcessor.h"
 
 #include <QString>
@@ -41,6 +42,10 @@ public:
 
     static constexpr int FullRateHz = 100;
 
+    // mesma interface do Max30102 (i2c-dev), mas sempre 0: o driver IIO esvazia a FIFO do chip
+    // e não expõe o contador de overflow
+    uint64_t lostSampleCount() const { return 0; }
+
 private:
     struct ChannelFormat
     {
@@ -57,8 +62,6 @@ private:
     int m_fileDescriptor = -1;
     ChannelFormat m_redFormat;
     ChannelFormat m_infraredFormat;
-    uint64_t m_redAccumulator = 0;
-    uint64_t m_infraredAccumulator = 0;
-    int m_accumulatedCount = 0;
+    PpgDecimator m_decimator;
     QString m_errorString;
 };

@@ -29,7 +29,10 @@ QString systemError()
 
 }
 
-Max30102Iio::Max30102Iio() = default;
+Max30102Iio::Max30102Iio()
+    : m_decimator(DecimationFactor)
+{
+}
 
 Max30102Iio::~Max30102Iio()
 {
@@ -77,9 +80,7 @@ bool Max30102Iio::open()
         writeAttribute(QStringLiteral("buffer/enable"), "0");
         return fail(QStringLiteral("não abriu %1: %2").arg(characterDevice, systemError()));
     }
-    m_redAccumulator = 0;
-    m_infraredAccumulator = 0;
-    m_accumulatedCount = 0;
+    m_decimator.reset();
     return true;
 }
 
@@ -126,25 +127,12 @@ bool Max30102Iio::readAvailableSamples(
                     | (uint32_t(word[2]) << 8) | word[3];
                 return (bigEndian >> format.shift) & format.mask;
             };
-            const uint32_t red = channelValue(m_redFormat);
-            const uint32_t infrared = channelValue(m_infraredFormat);
+            const PpgSample sample{channelValue(m_redFormat), channelValue(m_infraredFormat)};
             if(fullRateSamples)
             {
-                fullRateSamples->push_back({red, infrared});
+                fullRateSamples->push_back(sample);
             }
-            m_redAccumulator += red;
-            m_infraredAccumulator += infrared;
-            ++m_accumulatedCount;
-            if(m_accumulatedCount == DecimationFactor)
-            {
-                PpgSample sample;
-                sample.red = uint32_t(m_redAccumulator / DecimationFactor);
-                sample.infrared = uint32_t(m_infraredAccumulator / DecimationFactor);
-                samples.push_back(sample);
-                m_redAccumulator = 0;
-                m_infraredAccumulator = 0;
-                m_accumulatedCount = 0;
-            }
+            m_decimator.add(sample, samples);
         }
         if(byteCount < ssize_t(sizeof(raw)))
         {

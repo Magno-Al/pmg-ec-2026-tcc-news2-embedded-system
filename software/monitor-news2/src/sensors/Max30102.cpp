@@ -1,5 +1,7 @@
 #include "Max30102.h"
 
+#include "Max30102Fifo.h"
+
 #include <fcntl.h>
 #include <linux/i2c-dev.h>
 #include <linux/i2c.h>
@@ -17,8 +19,8 @@ namespace
 
 constexpr uint16_t SensorAddress = 0x57;
 constexpr uint8_t ExpectedPartId = 0x15;
-constexpr int FifoDepth = 32;
-constexpr int BytesPerSample = 6;
+// 100 amostras/s do chip -> 25 amostras/s do PpgProcessor
+constexpr int DecimationFactor = Max30102::FullRateHz / 25;
 
 constexpr uint8_t RegisterFifoWritePointer = 0x04;
 constexpr uint8_t RegisterFifoOverflowCounter = 0x05;
@@ -36,8 +38,11 @@ constexpr uint8_t ModeShutdown = 0x80;
 constexpr uint8_t ModeSpo2 = 0x03;
 // média de 4 amostras na FIFO + rollover
 constexpr uint8_t FifoAverageFourWithRollover = 0x50;
-// faixa do ADC 4096 nA, 100 amostras/s, pulso de 411 µs (18 bits)
-constexpr uint8_t Spo2Range4096Rate100Pulse411 = 0x27;
+// SPO2_CONFIG = 0b0'01'011'11: faixa do ADC 4096 nA (01), 400 amostras/s (011), pulso de
+// 411 µs, 18 bits (11). Com a média de 4 da FIFO, o chip entrega 100 amostras/s — a mesma
+// configuração do driver IIO do kernel. Conferir no datasheet (tabela de configurações
+// permitidas no modo SpO₂: taxa × largura de pulso) que 400 Hz com pulso de 411 µs é aceito.
+constexpr uint8_t Spo2Range4096Rate400Pulse411 = 0x2F;
 // ~7 mA: com o dedo, IR na casa de 10⁵ contagens, longe da saturação (2¹⁸)
 constexpr uint8_t LedAmplitude = 0x24;
 
@@ -50,6 +55,7 @@ QString systemError()
 
 Max30102::Max30102(QString devicePath)
     : m_devicePath(std::move(devicePath))
+    , m_decimator(DecimationFactor)
 {
 }
 
@@ -85,12 +91,14 @@ bool Max30102::open()
     QThread::msleep(100);
     const bool isConfigured = writeRegister(RegisterFifoConfig, FifoAverageFourWithRollover)
         && writeRegister(RegisterModeConfig, ModeSpo2)
-        && writeRegister(RegisterSpo2Config, Spo2Range4096Rate100Pulse411)
+        && writeRegister(RegisterSpo2Config, Spo2Range4096Rate400Pulse411)
         && writeRegister(RegisterLedRedAmplitude, LedAmplitude)
         && writeRegister(RegisterLedInfraredAmplitude, LedAmplitude)
         && writeRegister(RegisterFifoWritePointer, 0)
         && writeRegister(RegisterFifoOverflowCounter, 0)
         && writeRegister(RegisterFifoReadPointer, 0);
+    // um bloco de média deixado por uma conexão anterior não continua este sinal
+    m_decimator.reset();
     return isConfigured;
 }
 
@@ -108,34 +116,45 @@ void Max30102::close()
 
 bool Max30102::readAvailableSamples(
     std::vector<PpgSample>& samples,
-    std::vector<PpgSample>*
+    std::vector<PpgSample>* fullRateSamples
 )
 {
+    // FIFO_WR_PTR (0x04), OVF_COUNTER (0x05) e FIFO_RD_PTR (0x06) numa leitura só
     uint8_t pointers[3] = {};
     if(!readRegisters(RegisterFifoWritePointer, pointers, sizeof(pointers)))
     {
         return false;
     }
     const uint8_t writePointer = pointers[0];
+    const uint8_t overflowCounter = pointers[1] & Max30102Fifo::PointerMask;
     const uint8_t readPointer = pointers[2];
-    const int availableCount = (writePointer - readPointer) & (FifoDepth - 1);
+    if(overflowCounter > 0)
+    {
+        m_lostSampleCount += overflowCounter;
+    }
+    const int availableCount =
+        Max30102Fifo::availableSampleCount(writePointer, readPointer, overflowCounter);
     if(availableCount == 0)
     {
         return true;
     }
 
-    uint8_t raw[FifoDepth * BytesPerSample];
-    if(!readRegisters(RegisterFifoData, raw, uint16_t(availableCount * BytesPerSample)))
+    uint8_t raw[Max30102Fifo::Depth * Max30102Fifo::BytesPerSample];
+    if(!readRegisters(
+           RegisterFifoData, raw, uint16_t(availableCount * Max30102Fifo::BytesPerSample)
+       ))
     {
         return false;
     }
     for(int index = 0; index < availableCount; ++index)
     {
-        const uint8_t* bytes = &raw[index * BytesPerSample];
-        PpgSample sample;
-        sample.red = ((uint32_t(bytes[0]) << 16) | (bytes[1] << 8) | bytes[2]) & 0x3FFFF;
-        sample.infrared = ((uint32_t(bytes[3]) << 16) | (bytes[4] << 8) | bytes[5]) & 0x3FFFF;
-        samples.push_back(sample);
+        const PpgSample sample =
+            Max30102Fifo::decodeSample(&raw[index * Max30102Fifo::BytesPerSample]);
+        if(fullRateSamples)
+        {
+            fullRateSamples->push_back(sample);
+        }
+        m_decimator.add(sample, samples);
     }
     return true;
 }
