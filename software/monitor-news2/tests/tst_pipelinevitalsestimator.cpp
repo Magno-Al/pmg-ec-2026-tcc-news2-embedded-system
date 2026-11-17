@@ -112,7 +112,7 @@ void PipelineVitalsEstimatorTest::test_resetDiscardsTheCurrentWindow()
 
 void PipelineVitalsEstimatorTest::test_heartRateOnlyAtOneHundredHertz()
 {
-    // modo usado para refinar a FC com as amostras de 100 Hz do IIO: só FC, mais precisa
+    // modo usado para refinar a FC com as amostras de 100 Hz do sensor: só FC, mais precisa
     PipelineVitalsEstimator estimator(100, PipelineVitalsEstimator::Outputs::HeartRateOnly);
     SyntheticPpg signal;
     signal.sampleRateHz = 100.0;

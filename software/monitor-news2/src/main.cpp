@@ -29,8 +29,7 @@ int terminationPipe[2] = {-1, -1};
 int screenshotPipe[2] = {-1, -1};
 
 // Só funções async-signal-safe aqui: o aviso vai por um pipe e o Qt encerra o laço de eventos
-// normalmente, o que roda os destrutores — inclusive o que desliga o buffer IIO e os LEDs do
-// sensor. Sem isso, "killall monitor-news2" deixava o MAX30102 aceso.
+// normalmente, o que roda os destrutores — inclusive o que desliga os LEDs do sensor. Sem isso, "killall monitor-news2" deixava o MAX30102 aceso.
 void onTerminationSignal(int)
 {
     const char signalled = 1;

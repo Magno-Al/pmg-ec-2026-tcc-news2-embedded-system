@@ -19,7 +19,7 @@ flowchart LR
     end
 
     subgraph KERNEL["Linux (Buildroot)"]
-        IIO["driver IIO max30102<br/>I²C 0x57 + INT no GPIO 17<br/>/dev/iio:device0"]
+        I2C["i2c-dev<br/>I²C 0x57<br/>/dev/i2c-1"]
         W1["w1-gpio + w1-therm<br/>GPIO 4<br/>/sys/bus/w1/devices/28-*"]
     end
 
@@ -32,7 +32,7 @@ flowchart LR
 
     ENF(("Equipe de<br/>enfermagem"))
 
-    MAX -- I²C --> IIO --> F1
+    MAX -- I²C --> I2C --> F1
     DS -- 1-Wire --> W1 --> F1
     ENF -- "PA, O₂, consciência<br/>(toque)" --> F2
     F1 -- "valores validados<br/>a cada 1 min" --> F2
@@ -59,12 +59,11 @@ flowchart LR
 flowchart TD
     subgraph AQ["Aquisição"]
         M1["MAX30102: 400 Hz, média de 4 no chip<br/>LED 7 mA, ADC 4096 nA, pulso 411 µs"]
-        M2["Driver IIO: interrupção 'FIFO quase cheia'<br/>buffer do kernel (256 amostras)"]
-        M3["Max30102Iio: lê /dev/iio:device0<br/>por evento (QSocketNotifier)"]
+        M2["Max30102: lê a FIFO do chip pela /dev/i2c-1<br/>a cada 40 ms (FIFO de 32 amostras = 320 ms)"]
         M4{"Amostras de<br/>100 Hz"}
         M5["Média de 4 → 25 Hz"]
         T1["Ds18b20Thermometer: thread própria<br/>lê w1_slave a cada 10 s (~750 ms)<br/>valida CRC, descarta 85,000 °C"]
-        M1 --> M2 --> M3 --> M4
+        M1 --> M2 --> M4
         M4 --> M5
     end
 
@@ -100,8 +99,7 @@ flowchart TD
 
 | Classe | Comunicação | Cálculo / responsabilidade |
 |---|---|---|
-| `Max30102Iio` | I²C via driver IIO, INT no GPIO 17, `/dev/iio:device0` | Lê as amostras de 100 Hz e gera também as de 25 Hz |
-| `Max30102` (alternativa) | I²C direto via `/dev/i2c-1` (polling a 40 ms) | Mesmo papel, sem driver do kernel |
+| `Max30102` | I²C direto via `/dev/i2c-1` (i2c-dev, polling a 40 ms) | Lê as amostras de 100 Hz e gera também as de 25 Hz |
 | `PpgProcessor` | — | Contato, filtros, picos, FC rápida, SpO₂, FR, curvas da tela |
 | `PipelineVitalsEstimator` | — | FC pelo MSPTD (código do `ppg-pipeline`) a 100 Hz |
 | `Ds18b20Thermometer` | 1-Wire via `w1-therm`, GPIO 4 | Temperatura a cada 10 s, numa thread própria |
@@ -125,7 +123,7 @@ falsos alarmes [3][4][5].
 | FR | ≤ 8 ou ≥ 25 irpm | 21–24 irpm | 60 s | Faixas do NEWS2 [1]; a FR já é média de 32 s |
 | Temperatura | ≤ 35,0 °C | ≥ 39,1 °C | 5 min | Faixas do NEWS2 [1]; o sensor leva ~1,5 min para aquecer |
 | Dedo fora do sensor | — | técnico | ~0,3 s (8 amostras) | Já implementado. Avaliar 10 s para não alarmar a cada ajuste do dedo |
-| Sensor sem resposta | — | técnico | 3 s | Já implementado (vigia do IIO) |
+| Sensor sem resposta | — | técnico | 3 s | Já implementado (vigia: 3 s sem amostra reabre o sensor) |
 | Sem temperatura | — | técnico | 30 s | Proposta |
 
 **Prioridades e sinalização:** seguir a IEC 60601-1-8 (alta = vermelho, média = amarelo, baixa =
@@ -276,7 +274,7 @@ Itens que o rascunho não cobre e que afetam a implementação ou o texto do TCC
 | 10 | **Local da temperatura** | Dedo ou pele ficam abaixo da temperatura central; o NEWS2 usa a corporal | Definir o local do sensor e, se preciso, um ajuste |
 | 11 | **Validação da FR** | Falta referência: contagem manual de 60 s ou respiração ritmada | Montar o protocolo |
 | 12 | **Sessão do paciente e privacidade** | Início e fim de monitoramento, identificação, LGPD se houver identificação | O app tem "plantão"; falta a identificação |
-| 13 | **Recuperação de falhas** | O app pode cair: quem reinicia? E se o sensor travar na partida (falha do IIO)? | Vigia de 3 s existe; falta reiniciar o app automaticamente |
+| 13 | **Recuperação de falhas** | O app pode cair: quem reinicia? E se o sensor travar? | Vigia de 3 s existe; falta reiniciar o app automaticamente |
 | 14 | **Desempenho e boot** | Tempo até o primeiro valor e o primeiro NEWS2 depois de ligar | Medir e documentar |
 
 ## 7. Referências

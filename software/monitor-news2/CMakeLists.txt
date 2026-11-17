@@ -5,16 +5,12 @@ project(MonitorNews2 VERSION 0.1.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# ON no Buildroot: lê o MAX30102 em vez dos dados simulados
+# ON no Buildroot: lê o MAX30102 (pela /dev/i2c-1, polling) em vez dos dados simulados
 option(MONITOR_NEWS2_HARDWARE "Usa os sensores reais em vez dos mocks" OFF)
-# Como o app fala com o MAX30102: "i2cdev" (registradores direto pela /dev/i2c-1, polling) ou
-# "iio" (driver do kernel + overlay i2c-sensor,max30102,int_pin=17, por interrupção)
-set(MONITOR_NEWS2_SENSOR_BACKEND "i2cdev" CACHE STRING "Acesso ao MAX30102: i2cdev ou iio")
-set_property(CACHE MONITOR_NEWS2_SENSOR_BACKEND PROPERTY STRINGS i2cdev iio)
 # Quem calcula FC, SpO₂ e FR a partir do PPG: "processor" (PpgProcessor deste app), "pipeline"
 # (método do ../ppg-pipeline: MSPTD + Smart Fusion), "hybrid" (FC e SpO₂ do pipeline, FR do
 # PpgProcessor) ou "refined" (PpgProcessor, com a FC refinada pelo pipeline sobre as amostras de
-# 100 Hz do sensor, entregues pelos dois acessos, i2cdev e iio). Contato e curvas são sempre do
+# 100 Hz do sensor). Contato e curvas são sempre do
 # PpgProcessor. Comparação na BIDMC e no sensor real (../ppg-pipeline/scripts/comparison): o
 # pipeline erra menos a FC, e o PpgProcessor a FR, sem o falso 6–7 irpm das ondas de Mayer.
 set(MONITOR_NEWS2_PPG_ALGORITHM "hybrid" CACHE STRING
@@ -88,18 +84,10 @@ if(MONITOR_NEWS2_HARDWARE)
     target_sources(monitor_core PRIVATE
         src/sensors/Max30102.h
         src/sensors/Max30102.cpp
-        src/sensors/Max30102Iio.h
-        src/sensors/Max30102Iio.cpp
         src/sensors/Max30102VitalSignsSource.h
         src/sensors/Max30102VitalSignsSource.cpp
     )
     target_compile_definitions(monitor_core PUBLIC MONITOR_NEWS2_HARDWARE)
-    if(MONITOR_NEWS2_SENSOR_BACKEND STREQUAL "iio")
-        target_compile_definitions(monitor_core PUBLIC MONITOR_NEWS2_SENSOR_IIO)
-    elseif(NOT MONITOR_NEWS2_SENSOR_BACKEND STREQUAL "i2cdev")
-        message(FATAL_ERROR "MONITOR_NEWS2_SENSOR_BACKEND deve ser i2cdev ou iio")
-    endif()
-    message(STATUS "MAX30102 via ${MONITOR_NEWS2_SENSOR_BACKEND}")
 endif()
 
 qt_add_executable(monitor-news2 src/main.cpp)

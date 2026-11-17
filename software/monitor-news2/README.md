@@ -22,22 +22,19 @@ ctest --test-dir build
 
 `-DMONITOR_NEWS2_HARDWARE=ON` troca o mock pela `Max30102VitalSignsSource`, que lê o
 MAX30102. O pacote do Buildroot (`buildroot/external/package/monitor-news2`) já liga a opção; no
-PC o padrão continua sendo o mock. A forma de acesso ao sensor também é escolhida na compilação,
-com `-DMONITOR_NEWS2_SENSOR_BACKEND` (no Buildroot, opção "acesso ao MAX30102" do pacote):
+PC o padrão continua sendo o mock.
 
-- `i2cdev` (padrão no CMake): o app configura o chip e lê a FIFO pela `/dev/i2c-1` a cada
-  40 ms. Conta as amostras que o chip descarta com a FIFO cheia (aviso no log e coluna
-  `amostras_perdidas` do traço).
-- `iio` (padrão da imagem do Buildroot): driver do kernel (`max30102.ko`, overlay
-  `i2c-sensor,max30102,int_pin=17`), com leitura por evento em `/dev/iio:device0`. Exige o INT
-  do sensor no GPIO 17.
+O app configura o chip e lê a FIFO pela `/dev/i2c-1` (i2c-dev, em espaço de usuário) a cada
+40 ms; o pino INT do sensor não é usado. Nenhum driver do kernel ocupa o endereço 0x57: a imagem
+não declara o sensor no device tree e não tem o módulo `max30102`. O chip fica em 400 Hz com
+média de 4 na FIFO, ou seja, 100 amostras/s. O app entrega essas amostras sem alteração ao
+ppg-pipeline no modo `refined` e a média de cada 4 (25 Hz) ao `PpgProcessor`. As amostras que o
+chip descarta com a FIFO cheia são contadas (aviso no log e coluna `amostras_perdidas` do
+traço).
 
-Os dois deixam o chip em 400 Hz com média de 4 na FIFO, ou seja, 100 amostras/s. O app entrega
-essas amostras sem alteração ao ppg-pipeline no modo `refined` e a média de cada 4 (25 Hz) ao
-`PpgProcessor`. A comparação entre os dois acessos está em
-`../bringup/max30102/estudo-comparativo`. Ela foi feita quando o i2c-dev ainda configurava o chip
-para 25 Hz. O roteiro para validar o i2c-dev a 100 Hz no equipamento e torná-lo o padrão está em
-`../bringup/max30102/TESTE_I2CDEV_100HZ.md`.
+A escolha do i2c-dev está registrada no estudo comparativo i2c-dev × driver IIO do kernel, em
+`../bringup/max30102/estudo-comparativo`. O roteiro para validar a leitura a 100 Hz no
+equipamento está em `../bringup/max30102/TESTE_I2CDEV_100HZ.md`.
 
 O cálculo de FC, SpO₂ e FR também é escolhido na compilação, com
 `-DMONITOR_NEWS2_PPG_ALGORITHM` (no Buildroot, opção "cálculo de FC/SpO2/FR" do pacote):
@@ -45,7 +42,7 @@ O cálculo de FC, SpO₂ e FR também é escolhido na compilação, com
 - `hybrid` (padrão): FC e SpO₂ pelo método do `../ppg-pipeline` (MSPTD), FR pelo `PpgProcessor`.
 - `pipeline`: os três pelo `../ppg-pipeline` (FR pelo Smart Fusion de Karlen).
 - `processor`: os três pelo `PpgProcessor` deste app.
-- `refined` (padrão da imagem do Buildroot, com `iio` ou `i2cdev`): SpO₂ e FR pelo
+- `refined` (padrão da imagem do Buildroot): SpO₂ e FR pelo
   `PpgProcessor`; a FC começa pelo `PpgProcessor` (~5 s) e passa a vir do `../ppg-pipeline`
   sobre as amostras de 100 Hz do sensor, sem a média de 4, assim que houver 30 s de sinal
   (~35 s). Na BIDMC a FC
@@ -85,7 +82,7 @@ erra menos a FR e não confunde as ondas de Mayer (~6–7 irpm) com respiração
 | `src/devices` | interfaces `VitalSignsSource` (MAX30102 + DS18B20) e `AlarmIndicator` (LED/buzzer) |
 | `src/prediction` | interface `DeteriorationPredictor` (XGBoost, NEWS2 ≥ 5 em 6 h) |
 | `src/mock` | implementações simuladas e os sinais de partida do leito 14-B |
-| `src/sensors` | MAX30102 (i2c-dev e IIO), `Max30102VitalSignsSource` e `Ds18b20Thermometer` |
+| `src/sensors` | MAX30102 (i2c-dev), `Max30102VitalSignsSource` e `Ds18b20Thermometer` |
 | `src/app` | `MonitorController` (view-model exposto ao QML como `Monitor`) e `PressureEntry` |
 | `src/ui` | itens C++ de desenho: curva em varredura, tendência, hachura, borda tracejada/dupla |
 | `qml` | telas: Monitoramento, Registro de PA/O₂, Evolução, Plantão, ajuda da predição |

@@ -23,19 +23,8 @@ MONITOR_NEWS2_OVERRIDE_SRCDIR_RSYNC_EXCLUSIONS = \
 	--exclude /ppg-pipeline/data \
 	--exclude /ppg-pipeline/debug_output
 
-# MONITOR_NEWS2_HARDWARE: no equipamento os sinais vêm do MAX30102, não do mock
+# MONITOR_NEWS2_HARDWARE: no equipamento os sinais vêm do MAX30102 (pela /dev/i2c-1), não do mock
 MONITOR_NEWS2_CONF_OPTS = -DQT_HOST_PATH=$(HOST_DIR) -DMONITOR_NEWS2_HARDWARE=ON
-
-ifeq ($(BR2_PACKAGE_MONITOR_NEWS2_SENSOR_IIO),y)
-MONITOR_NEWS2_CONF_OPTS += -DMONITOR_NEWS2_SENSOR_BACKEND=iio
-# sem udev/mdev ninguem carrega o modulo pelo device tree: o init script faz o modprobe
-define MONITOR_NEWS2_INSTALL_INIT_SYSV
-	$(INSTALL) -D -m 0755 $(MONITOR_NEWS2_PKGDIR)/S30max30102 \
-		$(TARGET_DIR)/etc/init.d/S30max30102
-endef
-else
-MONITOR_NEWS2_CONF_OPTS += -DMONITOR_NEWS2_SENSOR_BACKEND=i2cdev
-endif
 
 ifeq ($(BR2_PACKAGE_MONITOR_NEWS2_PPG_PIPELINE),y)
 MONITOR_NEWS2_CONF_OPTS += -DMONITOR_NEWS2_PPG_ALGORITHM=pipeline

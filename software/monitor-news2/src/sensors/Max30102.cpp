@@ -40,8 +40,9 @@ constexpr uint8_t ModeSpo2 = 0x03;
 constexpr uint8_t FifoAverageFourWithRollover = 0x50;
 // SPO2_CONFIG = 0b0'01'011'11: faixa do ADC 4096 nA (01), 400 amostras/s (011), pulso de
 // 411 µs, 18 bits (11). Com a média de 4 da FIFO, o chip entrega 100 amostras/s — a mesma
-// configuração do driver IIO do kernel. Conferir no datasheet (tabela de configurações
-// permitidas no modo SpO₂: taxa × largura de pulso) que 400 Hz com pulso de 411 µs é aceito.
+// configuração do driver max30102 do Linux (drivers/iio/health/max30102.c). Conferir no
+// datasheet (tabela de configurações permitidas no modo SpO₂: taxa × largura de pulso) que
+// 400 Hz com pulso de 411 µs é aceito.
 constexpr uint8_t Spo2Range4096Rate400Pulse411 = 0x2F;
 // ~7 mA: com o dedo, IR na casa de 10⁵ contagens, longe da saturação (2¹⁸)
 constexpr uint8_t LedAmplitude = 0x24;

@@ -7,7 +7,8 @@ config BR2_PACKAGE_MONITOR_NEWS2
 	select BR2_PACKAGE_QT6DECLARATIVE_QUICK
 	help
 	  Interface de beira de leito do monitor NEWS2 (Qt 6 + QML).
-	  Instalada em /root/monitor-news2, sem script de init.
+	  Instalada em /root/monitor-news2, sem script de init. Le o
+	  MAX30102 pela /dev/i2c-1 (i2c-dev, polling da FIFO a cada 40 ms).
 
 if BR2_PACKAGE_MONITOR_NEWS2
 
@@ -17,30 +18,6 @@ config BR2_PACKAGE_MONITOR_NEWS2_SRCDIR
 	help
 	  Diretorio software/ deste repositorio (SITE_METHOD=local): o app
 	  fica em monitor-news2/ e usa a biblioteca de ppg-pipeline/.
-
-choice
-	prompt "acesso ao MAX30102"
-	default BR2_PACKAGE_MONITOR_NEWS2_SENSOR_I2CDEV
-	help
-	  Como o app le o sensor PPG. O overlay i2c-sensor,max30102 fica
-	  sempre no config.txt; sem o modulo carregado ele nao ocupa o
-	  endereco 0x57, entao nao atrapalha o i2c-dev.
-
-config BR2_PACKAGE_MONITOR_NEWS2_SENSOR_I2CDEV
-	bool "i2c-dev (espaco de usuario, polling)"
-	help
-	  O app escreve os registradores do chip pela /dev/i2c-1 e le a
-	  FIFO a cada 40 ms. Nao usa o pino INT.
-
-config BR2_PACKAGE_MONITOR_NEWS2_SENSOR_IIO
-	bool "driver IIO do kernel (interrupcao no GPIO 17)"
-	select BR2_PACKAGE_KMOD
-	help
-	  O driver drivers/iio/health/max30102 atende a interrupcao do
-	  sensor e o app le /dev/iio:deviceN. Instala o S30max30102,
-	  que carrega o modulo no boot. Exige o INT no GPIO 17.
-
-endchoice
 
 choice
 	prompt "calculo de FC/SpO2/FR"
@@ -63,8 +40,7 @@ config BR2_PACKAGE_MONITOR_NEWS2_PPG_REFINED
 	help
 	  SpO2 e FR do PpgProcessor; a FC passa a vir do ppg-pipeline
 	  (MSPTD) sobre as amostras de 100 Hz do sensor assim que houver
-	  30 s de sinal. Funciona com os dois acessos (i2c-dev e IIO),
-	  que entregam 100 Hz.
+	  30 s de sinal.
 
 endchoice
 

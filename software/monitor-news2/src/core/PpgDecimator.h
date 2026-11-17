@@ -6,8 +6,8 @@
 #include <vector>
 
 // Média de blocos de N amostras consecutivas, sem sobreposição: transforma as 100 amostras/s do
-// MAX30102 nas 25 amostras/s que o PpgProcessor espera (N = 4). Usado pelos dois acessos ao
-// sensor (Max30102 por i2c-dev e Max30102Iio). Um bloco incompleto no fim de uma leitura fica
+// MAX30102 nas 25 amostras/s que o PpgProcessor espera (N = 4). Usado pelo Max30102 (i2c-dev).
+// Um bloco incompleto no fim de uma leitura fica
 // guardado e é completado pelas amostras da leitura seguinte: nenhuma amostra é descartada. A
 // média é a divisão inteira da soma (trunca), como o MAX30102 faz na própria FIFO.
 class PpgDecimator

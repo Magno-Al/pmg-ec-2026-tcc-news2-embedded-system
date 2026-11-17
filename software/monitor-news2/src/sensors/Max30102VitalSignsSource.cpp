@@ -15,11 +15,12 @@ namespace
 constexpr int PollIntervalMilliseconds = 40;
 constexpr int PublishIntervalMilliseconds = 1000;
 constexpr int ReconnectIntervalMilliseconds = 2000;
-// no IIO um sensor desconectado não dá erro, as interrupções só param de chegar
+// vigia: o barramento pode responder sem que a FIFO do chip receba amostras (chip reiniciado,
+// por exemplo); sem amostra por 3 s, o sensor é reaberto e reconfigurado
 constexpr int StalledSensorMilliseconds = 3000;
 // O oscilador do MAX30102 fica ~1% abaixo da taxa nominal (24,7 Hz medidos contra 25), o que
 // desloca FC e FR na mesma proporção. A taxa é medida pela inclinação amostras × tempo a partir
-// do primeiro lote, o que elimina o atraso fixo de entrega do IIO (~300 ms), e só é aplicada
+// do primeiro lote, o que elimina o atraso fixo entre a amostra e a leitura, e só é aplicada
 // depois de 20 s de medição; ±5% é o limite de plausibilidade.
 constexpr qint64 SampleRateMeasureMilliseconds = 20000;
 constexpr double MaximumSampleRateCorrection = 0.05;
@@ -87,19 +88,8 @@ void Max30102VitalSignsSource::openSensor()
     m_sinceLastSample.start();
     m_sampleRateClock.invalidate();
     m_samplesSinceFirstBatch = 0;
-    const int descriptor = m_sensor.notificationDescriptor();
-    if(descriptor >= 0)
-    {
-        qInfo() << "MAX30102: driver IIO do kernel, leitura por evento";
-        m_dataNotifier = std::make_unique<QSocketNotifier>(descriptor, QSocketNotifier::Read);
-        connect(m_dataNotifier.get(), &QSocketNotifier::activated,
-                this, &Max30102VitalSignsSource::poll);
-    }
-    else
-    {
-        qInfo() << "MAX30102: i2c-dev em espaço de usuário, leitura a cada 40 ms";
-        m_pollTimer.start();
-    }
+    qInfo() << "MAX30102: i2c-dev em espaço de usuário, leitura a cada 40 ms";
+    m_pollTimer.start();
 }
 
 void Max30102VitalSignsSource::poll()
@@ -209,7 +199,6 @@ void Max30102VitalSignsSource::handleSensorFailure(const QString& reason)
 {
     qWarning().noquote() << "MAX30102:" << reason << "- reconectando";
     m_pollTimer.stop();
-    m_dataNotifier.reset();
     m_sensor.close();
     if(m_processor.hasFingerContact())
     {

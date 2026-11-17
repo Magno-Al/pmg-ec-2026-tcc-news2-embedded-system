@@ -3,6 +3,14 @@
 Data: 2026-11-04. Raspberry Pi 3B+, kernel 6.6.28, imagem Buildroot do projeto. Um voluntário
 em repouso com o dedo no sensor durante todas as medições.
 
+**Código usado no estudo: commit `16b4a99`.** Os scripts de `scripts/` usam, desse commit:
+- o gravador `software/bringup/max30102/PpgBackendRecorder.cpp`;
+- as classes de acesso do app, `software/monitor-news2/src/sensors/Max30102.*` e `Max30102Iio.*`;
+- o script de boot `buildroot/external/package/monitor-news2/S30max30102`;
+- a imagem com o overlay e o módulo do driver IIO.
+
+Para refazer as medições, compile e grave a imagem a partir desse commit.
+
 ## Pergunta
 
 O monitor pode falar com o MAX30102 de duas formas, escolhidas na compilação do app
@@ -20,7 +28,7 @@ se a forma de acesso muda a qualidade do sinal, as medidas, o custo ou a robuste
 
 ## Método
 
-- **Gravador** (`../PpgBackendRecorder.cpp`): usa as mesmas classes de acesso do app e grava cada
+- **Gravador** (`../PpgBackendRecorder.cpp`, no commit `16b4a99`): usa as mesmas classes de acesso do app e grava cada
   amostra com o instante da leitura (`CLOCK_MONOTONIC`), além do tempo de CPU e das trocas de
   contexto (`getrusage`). Reproduz o ritmo do app: sono de 40 ms no i2c-dev, `poll()` no IIO.
 - **Protocolo**: segmentos de 75 s alternando os acessos, porque os dois não podem ler o chip ao
@@ -116,4 +124,4 @@ gerados em `/root/comparativo*` para `dados/rodada*`.
 | `scripts/protocolo-rodada*.sh` | scripts executados no Pi |
 | `scripts/analisar.py` | análise (numpy/scipy) |
 | `scripts/replay_ppg.cpp` | passa uma gravação pelo `PpgProcessor` do app |
-| `../PpgBackendRecorder.cpp` | gravador |
+| `../PpgBackendRecorder.cpp` (commit `16b4a99`) | gravador |

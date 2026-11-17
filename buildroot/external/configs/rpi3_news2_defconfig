@@ -156,11 +156,8 @@ BR2_PACKAGE_IW=y
 # ---- [15] Aplicacao ------------------------------------------------------
 # instalada em /root/monitor-news2, sem script de init (nao sobe no boot)
 BR2_PACKAGE_MONITOR_NEWS2=y
-# acesso ao MAX30102 pelo driver IIO do kernel; troque por
-# BR2_PACKAGE_MONITOR_NEWS2_SENSOR_I2CDEV=y para o acesso direto por i2c-dev
-BR2_PACKAGE_MONITOR_NEWS2_SENSOR_IIO=y
 # SpO2/FR pelo PpgProcessor do app e FC refinada pelo ppg-pipeline sobre as amostras de
-# 100 Hz do IIO; outras opcoes: ..._PPG_PROCESSOR, ..._PPG_HYBRID, ..._PPG_PIPELINE
+# 100 Hz do sensor; outras opcoes: ..._PPG_PROCESSOR, ..._PPG_HYBRID, ..._PPG_PIPELINE
 # (comparacao em software/ppg-pipeline/scripts/comparison)
 BR2_PACKAGE_MONITOR_NEWS2_PPG_REFINED=y
 

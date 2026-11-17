@@ -8,11 +8,10 @@
 #include <cstdint>
 #include <vector>
 
-// Driver do MAX30102 pela /dev/i2c-N (i2c-dev, sem driver IIO do kernel). Configura o modo
-// SpO₂ (vermelho + IR) a 400 amostras/s com média de 4 na FIFO, ou seja, 100 amostras/s
-// entregues — a mesma configuração do driver IIO do kernel — e lê a FIFO por polling: o pino
-// INT não é necessário. Como o Max30102Iio, entrega as amostras de 100 Hz sem alteração e a
-// média de cada 4 delas (25 Hz) para o PpgProcessor.
+// Driver do MAX30102 pela /dev/i2c-N (i2c-dev, em espaço de usuário). Configura o modo SpO₂
+// (vermelho + IR) a 400 amostras/s com média de 4 na FIFO, ou seja, 100 amostras/s entregues,
+// e lê a FIFO por polling: o pino INT não é usado. Entrega as amostras de 100 Hz sem alteração
+// e a média de cada 4 delas (25 Hz) para o PpgProcessor.
 class Max30102
 {
 public:
@@ -30,8 +29,6 @@ public:
     void close();
     bool isOpen() const { return m_fileDescriptor >= 0; }
     QString errorString() const { return m_errorString; }
-    // sem descritor para esperar por evento: a FIFO do chip é consultada periodicamente
-    int notificationDescriptor() const { return -1; }
 
     // samples: 25 Hz (média de 4), como o PpgProcessor espera; fullRateSamples, se dado,
     // recebe também as amostras de 100 Hz do chip, sem a média. Um bloco de média incompleto

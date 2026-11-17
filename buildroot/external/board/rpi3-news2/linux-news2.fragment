@@ -10,14 +10,10 @@ CONFIG_W1=y
 CONFIG_W1_MASTER_GPIO=y
 CONFIG_W1_SLAVE_THERM=y
 
-# ---- IIO + MAX30102: MODULO, carregado so pelo S30max30102 -----------------
-# O driver exige IRQ valida (max30102.c: "no valid irq defined"); o INT vai no
-# GPIO 17 (int_pin=17 no config.txt), porque o padrao do overlay e o GPIO 4,
-# o mesmo do w1-gpio. Usado quando o app e compilado com acesso IIO.
-CONFIG_IIO=m
-CONFIG_IIO_BUFFER=y
-CONFIG_IIO_KFIFO_BUF=m
-CONFIG_MAX30102=m
+# ---- MAX30102: sem driver do kernel ----------------------------------------
+# O app le o chip pela /dev/i2c-1. O bcmrpi3_defconfig traz CONFIG_MAX30102=m;
+# desligado aqui, nenhum modulo pode ocupar o endereco 0x57.
+# CONFIG_MAX30102 is not set
 
 # ---- Entrada: toque capacitivo USB HID ------------------------------------
 # EVDEV: /dev/input/event*, lido pelo evdevtouch do Qt

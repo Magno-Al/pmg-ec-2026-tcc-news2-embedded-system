@@ -1,79 +1,65 @@
-# Teste do i2c-dev a 100 Hz e troca do acesso padrão
+# Validação no equipamento da leitura do MAX30102 a 100 Hz por i2c-dev
 
-O acesso por i2c-dev (`software/monitor-news2/src/sensors/Max30102.cpp`) passou a configurar o
-MAX30102 como o driver IIO do kernel: 400 Hz internos, média de 4 na FIFO, ou seja, 100
-amostras/s. Ele entrega as amostras de 100 Hz ao ppg-pipeline (FC do modo `refined`) e a média
-de cada 4, a 25 Hz, ao `PpgProcessor`. Também conta as amostras que o chip descarta quando a FIFO
-enche (contador de overflow).
+O app lê o MAX30102 pela `/dev/i2c-1` (i2c-dev, `software/monitor-news2/src/sensors/Max30102.cpp`).
+Ele configura o chip a 400 Hz internos, com média de 4 na FIFO, ou seja, 100 amostras/s. As
+amostras de 100 Hz vão para o ppg-pipeline (FC do modo `refined`), e a média de cada 4, a 25 Hz,
+vai para o `PpgProcessor`. O app também conta as amostras que o chip descarta quando a FIFO enche
+(contador de overflow).
 
-Isso foi verificado só com testes automatizados, sem o sensor. Este roteiro valida o i2c-dev no
-equipamento e, se ele for aprovado, faz dele o acesso padrão da imagem no lugar do IIO.
+A imagem não declara o sensor no device tree (sem `dtoverlay=i2c-sensor,max30102` no
+`config.txt`) e não tem o módulo `max30102` (`# CONFIG_MAX30102 is not set` no
+`linux-news2.fragment`). Assim, nenhum driver do kernel ocupa o endereço 0x57, e o pino INT não é
+usado. A escolha do i2c-dev está registrada em `estudo-comparativo/`.
 
-Motivo da troca: no estudo comparativo (`estudo-comparativo/`), o i2c-dev teve a mesma
-qualidade de sinal que o IIO, menos atraso, mais folga contra transbordo da FIFO e nenhuma
-falha. O IIO teve uma falha de aquisição e mantém a FIFO do chip quase cheia.
+Até agora, isso foi verificado só com testes automatizados, sem o sensor. Este roteiro valida no
+equipamento.
 
-**Muda com o i2c-dev a 100 Hz.** A FIFO do chip guarda 32 amostras, ou seja, 320 ms a 100 Hz,
-contra 1,28 s a 25 Hz. É o único buffer entre o chip e o app, que a lê a cada 40 ms na thread
-principal. Se a thread principal ficar travada por mais de cerca de 280 ms, amostras se perdem.
-Esse é o principal ponto a observar.
+**Ponto principal a observar.** A FIFO do chip guarda 32 amostras, ou seja, 320 ms a 100 Hz. É o
+único buffer entre o chip e o app, que a lê a cada 40 ms na thread principal. Se a thread
+principal ficar travada por mais de cerca de 280 ms, amostras se perdem.
 
 ## 0. Antes de ir para a bancada
 
 - [ ] Confirmar no datasheet do MAX30102 (tabela de configurações permitidas no modo SpO₂, taxa
       × largura de pulso) que **400 amostras/s com pulso de 411 µs** é uma combinação aceita.
-      O driver IIO do kernel usa a mesma combinação, mas ela não foi conferida na tabela.
+      O driver max30102 do Linux usa a mesma combinação, mas ela não foi conferida na tabela.
 - [ ] Confirmar no datasheet o comportamento da FIFO cheia com `FIFO_ROLLOVER_EN = 1`. O código
       assume que, com overflow, os ponteiros de escrita e leitura ficam iguais e
       `OVF_COUNTER > 0`, e aí lê as 32 amostras. Ver `Max30102Fifo::availableSampleCount`.
 - [ ] No PC, com o Qt 6.5 ou mais novo: `ctest --test-dir build` passa, incluindo
       `tst_max30102fifo` e `tst_ppgdecimator`.
 
-## 1. Compilar o app com i2c-dev e o modo refined
+## 1. Gerar e gravar a imagem
 
-Não altere o `rpi3_news2_defconfig` nesta etapa: a troca é só local, no `.config` do build.
+O `config.txt` e o fragmento do kernel fazem parte da imagem, então é preciso **regerar a imagem
+inteira** com o Buildroot, não só o pacote do app. O `config.txt` vai para a partição de boot
+pelo `rpi-firmware`.
 
 ```sh
 cd buildroot
-make menuconfig
-#   External options → monitor-news2
-#     acesso ao MAX30102  → i2c-dev (espaco de usuario, polling)
-#     calculo de FC/SpO2/FR → PpgProcessor + FC refinada a 100 Hz pelo ppg-pipeline
-make monitor-news2-dirclean monitor-news2
+make
+make flash SD=/dev/sdX
 ```
 
-**Não rode `make save`**: ele gravaria essa escolha no defconfig.
-
-O binário fica em `buildroot/build/target/root/monitor-news2`. Copie-o com outro nome, para não
-substituir o da imagem:
-
-```sh
-scp build/target/root/monitor-news2 root@<ip>:/root/monitor-news2-i2cdev
-```
-
-Compile também a ferramenta de medição de tempo e copie-a para o equipamento. O comando está no
-`README.md` desta pasta (`pipeline-window-benchmark`).
+O app fica em `/root/monitor-news2`. Compile também a ferramenta de medição de tempo e copie-a
+para o equipamento. O comando está no `README.md` desta pasta (`pipeline-window-benchmark`).
 
 ```sh
 scp software/bringup/max30102/pipeline-window-benchmark root@<ip>:/root/
 ```
 
-Para voltar ao estado anterior do build, escolha de novo "driver IIO" no `menuconfig` e recompile
-o pacote.
+## 2. Conferir que nenhum driver ocupa o sensor
 
-## 2. Parar o driver IIO
+Logo depois do boot, antes de abrir o app:
 
-O driver IIO e o i2c-dev não podem usar o chip ao mesmo tempo: com o módulo `max30102`
-carregado, o endereço 0x57 fica ocupado. No equipamento:
-
-```sh
-killall monitor-news2 2>/dev/null        # se o app da imagem estiver aberto
-/etc/init.d/S30max30102 stop             # descarrega o módulo; o buffer IIO apaga os LEDs
-ls /sys/bus/iio/devices/                 # não deve listar nenhum iio:device do max30102
-i2cdetect -y 1                           # 0x57 deve aparecer como "57", não como "UU"
-```
-
-O `S30max30102` carrega o módulo de novo a cada boot. Depois de reiniciar, repita este passo.
+- [ ] `/dev/i2c-1` existe: `ls -l /dev/i2c-1`.
+- [ ] `i2cdetect -y 1` mostra `57` na posição 0x57, e não `UU`. `UU` indicaria um driver do kernel
+      ligado ao endereço.
+- [ ] Nem `/sys/bus/i2c/devices/1-0057` existe: `ls /sys/bus/i2c/devices/`. Sem o overlay, o
+      kernel não cria o dispositivo, e portanto não há `1-0057/driver`.
+- [ ] `lsmod | grep max30102` não mostra nada.
+- [ ] `modinfo max30102` falha. O módulo não deve existir na imagem.
+- [ ] O app lê o sensor a 100 Hz: passo 3 e critérios do passo 4.
 
 ## 3. Medir durante pelo menos 5 minutos
 
@@ -81,11 +67,11 @@ Com o voluntário em repouso, o dedo parado no sensor desde o início e um oxím
 outro dedo como referência de FC:
 
 ```sh
-MONITOR_NEWS2_TRACE=/tmp/i2cdev.csv /root/monitor-news2-i2cdev --fullscreen 2>&1 | tee /tmp/i2cdev.log
+MONITOR_NEWS2_TRACE=/tmp/i2cdev.csv /root/monitor-news2 --fullscreen 2>&1 | tee /tmp/i2cdev.log
 ```
 
 Enquanto o app roda, em outro terminal, confirme a configuração do chip. O registrador 0x0A deve
-valer `0x2f`; antes da mudança valia `0x27`.
+valer `0x2f`.
 
 ```sh
 i2cget -f -y 1 0x57 0x0a
@@ -100,10 +86,6 @@ de cálculo das janelas:
 
 A linha `refined` dá a média e o máximo por janela da FC a 100 Hz. Repita a medição com o app
 aberto, para ver o efeito da concorrência com a interface.
-
-Para comparar com o IIO, repita a medição com o app da imagem
-(`/etc/init.d/S30max30102 start`, depois `/root/monitor-news2` com outro arquivo de traço).
-Alterne os dois acessos, como no estudo comparativo.
 
 ### O que tirar do traço
 
@@ -155,7 +137,7 @@ print(f"segundos com contato e sem FC refinada após a 1ª: "
 
 Salve como `resumo_traco.py` e rode `python3 resumo_traco.py i2cdev.csv`.
 
-## 4. Critérios para aprovar a troca
+## 4. Critérios de aprovação
 
 Todos devem valer numa medição de pelo menos 5 minutos com o dedo parado. De preferência, em
 duas rodadas.
@@ -171,37 +153,9 @@ duas rodadas.
   - nenhum salto maior que 10 bpm entre segundos consecutivos;
   - nenhum segundo sem FC refinada com o dedo parado, a não ser o fallback ocasional para o
     `PpgProcessor` quando uma janela é reprovada.
-- [ ] FC média a até 2 bpm da do oxímetro de referência e da medição pelo IIO na mesma sessão.
+- [ ] FC média a até 2 bpm da do oxímetro de referência.
 - [ ] Tempo de cálculo por janela na Raspberry com máximo bem abaixo da folga da FIFO, por
       exemplo **< 50 ms**. A folga é de cerca de 280 ms: 320 ms da FIFO menos os 40 ms entre
       leituras.
 
-Se algum critério falhar, mantenha o IIO como padrão e registre o resultado em
-`estudo-comparativo/`.
-
-## 5. Tornar o i2c-dev o padrão (depois de aprovado)
-
-1. **Defconfig** (`buildroot/external/configs/rpi3_news2_defconfig`): troque
-   `BR2_PACKAGE_MONITOR_NEWS2_SENSOR_IIO=y` por `BR2_PACKAGE_MONITOR_NEWS2_SENSOR_I2CDEV=y`,
-   mantenha `BR2_PACKAGE_MONITOR_NEWS2_PPG_REFINED=y` e atualize o comentário acima delas.
-2. **S30max30102** deixa de carregar o módulo `max30102`. Com o i2c-dev escolhido, o pacote já
-   não instala o script (`monitor-news2.mk`, bloco `ifeq ($(BR2_PACKAGE_MONITOR_NEWS2_SENSOR_IIO),y)`).
-   Sem udev/mdev, nada mais carrega o módulo. Confira na imagem nova que `/etc/init.d/S30max30102`
-   não existe e que `lsmod` não lista `max30102`. Se o IIO for abandonado de vez, dá para remover
-   o script, esse bloco do `.mk` e o `CONFIG_MAX30102=m` de `linux-news2.fragment`.
-3. **config.txt** (`buildroot/external/board/rpi3-news2/config.txt`): remova a linha
-   `dtoverlay=i2c-sensor,max30102,int_pin=17` e o bloco de comentário do MAX30102. Isso libera o
-   **GPIO 17**. O i2c-dev não usa o pino INT, só `dtparam=i2c_arm=on`, que continua.
-4. Ajuste o que menciona o IIO como padrão:
-   - o `README.md` do `monitor-news2` (seção do sensor real);
-   - o comentário do `rpi3_news2_defconfig`;
-   - `docs/fluxos-do-sistema.md` (diagrama de aquisição).
-5. Gere a imagem e grave o cartão:
-   ```sh
-   cd buildroot
-   make
-   make flash SD=/dev/sdX
-   ```
-   O `config.txt` vai para a partição de boot pelo `rpi-firmware`, então é preciso gerar a imagem
-   inteira, não só o pacote.
-6. Na imagem nova, repita a medição do passo 3 (sem o passo 2) e confira os critérios do passo 4.
+Se algum critério falhar, registre a medição e o critério que falhou antes de usar o equipamento.

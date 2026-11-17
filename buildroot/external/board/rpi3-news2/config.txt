@@ -22,6 +22,8 @@ dtoverlay=disable-bt
 enable_uart=1
 
 # ---- I2C (MAX30102 @ 0x57) ---------------------------------------------
+# O app le o sensor pela /dev/i2c-1 (i2c-dev). Nenhum overlay declara o
+# 0x57, para que nenhum driver do kernel ocupe o endereco; o INT nao e usado.
 # Fast Mode; se der erro de barramento, use 100000
 dtparam=i2c_arm=on
 dtparam=i2c_arm_baudrate=400000
@@ -32,10 +34,3 @@ dtparam=i2c_arm_baudrate=400000
 dtoverlay=w1-gpio,gpiopin=4
 
 dtparam=audio=off
-
-# ---- MAX30102 (I2C 0x57, INT no GPIO 17) ---------------------------------
-# Declara o sensor para o driver IIO. int_pin=17 e obrigatorio: o padrao do
-# overlay e o GPIO 4, o mesmo do w1-gpio acima. Sem udev, o modulo max30102
-# so carrega pelo S30max30102 (pacote monitor-news2 com acesso IIO); sem o
-# modulo, 0x57 fica livre e o acesso por i2c-dev continua funcionando.
-dtoverlay=i2c-sensor,max30102,int_pin=17
