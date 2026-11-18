@@ -7,6 +7,14 @@ Os dois métodos de cálculo de FC, SpO₂ e FR a partir do PPG do MAX30102, com
 - **PpgProcessor**: `software/monitor-news2/src/core/PpgProcessor.{h,cpp}`
 - **ppg-pipeline**: `software/ppg-pipeline` (no app, via `PipelineVitalsEstimator`)
 
+> **Registro da decisão.** Este comparativo levou o app a usar só o ppg-pipeline. O
+> `PpgProcessor`, a opção `MONITOR_NEWS2_PPG_ALGORITHM` e a ferramenta `ppg-processor-export`
+> existem até a tag `ultimo-ppgprocessor`, e os caminhos e as opções citados abaixo valem para
+> ela.
+> **Pendência:** a configuração `processor-25` de
+> `software/ppg-pipeline/scripts/comparison/run_comparison.sh` usa a `ppg-processor-export` e
+> não roda no HEAD; para reproduzi-la, use a tag `ultimo-ppgprocessor`.
+
 ## Visão geral
 
 | | **PpgProcessor** (padrão da imagem) | **ppg-pipeline** |

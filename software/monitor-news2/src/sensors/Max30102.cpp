@@ -19,8 +19,6 @@ namespace
 
 constexpr uint16_t SensorAddress = 0x57;
 constexpr uint8_t ExpectedPartId = 0x15;
-// 100 amostras/s do chip -> 25 amostras/s do PpgProcessor
-constexpr int DecimationFactor = Max30102::FullRateHz / 25;
 
 constexpr uint8_t RegisterFifoWritePointer = 0x04;
 constexpr uint8_t RegisterFifoOverflowCounter = 0x05;
@@ -56,7 +54,6 @@ QString systemError()
 
 Max30102::Max30102(QString devicePath)
     : m_devicePath(std::move(devicePath))
-    , m_decimator(DecimationFactor)
 {
 }
 
@@ -98,8 +95,6 @@ bool Max30102::open()
         && writeRegister(RegisterFifoWritePointer, 0)
         && writeRegister(RegisterFifoOverflowCounter, 0)
         && writeRegister(RegisterFifoReadPointer, 0);
-    // um bloco de média deixado por uma conexão anterior não continua este sinal
-    m_decimator.reset();
     return isConfigured;
 }
 
@@ -115,10 +110,7 @@ void Max30102::close()
     m_fileDescriptor = -1;
 }
 
-bool Max30102::readAvailableSamples(
-    std::vector<PpgSample>& samples,
-    std::vector<PpgSample>* fullRateSamples
-)
+bool Max30102::readAvailableSamples(std::vector<PPGSample>& samples)
 {
     // FIFO_WR_PTR (0x04), OVF_COUNTER (0x05) e FIFO_RD_PTR (0x06) numa leitura só
     uint8_t pointers[3] = {};
@@ -149,13 +141,7 @@ bool Max30102::readAvailableSamples(
     }
     for(int index = 0; index < availableCount; ++index)
     {
-        const PpgSample sample =
-            Max30102Fifo::decodeSample(&raw[index * Max30102Fifo::BytesPerSample]);
-        if(fullRateSamples)
-        {
-            fullRateSamples->push_back(sample);
-        }
-        m_decimator.add(sample, samples);
+        samples.push_back(Max30102Fifo::decodeSample(&raw[index * Max30102Fifo::BytesPerSample]));
     }
     return true;
 }

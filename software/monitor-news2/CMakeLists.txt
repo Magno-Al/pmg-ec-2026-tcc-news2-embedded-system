@@ -7,17 +7,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # ON no Buildroot: lê o MAX30102 (pela /dev/i2c-1, polling) em vez dos dados simulados
 option(MONITOR_NEWS2_HARDWARE "Usa os sensores reais em vez dos mocks" OFF)
-# Quem calcula FC, SpO₂ e FR a partir do PPG: "processor" (PpgProcessor deste app), "pipeline"
-# (método do ../ppg-pipeline: MSPTD + Smart Fusion), "hybrid" (FC e SpO₂ do pipeline, FR do
-# PpgProcessor) ou "refined" (PpgProcessor, com a FC refinada pelo pipeline sobre as amostras de
-# 100 Hz do sensor). Contato e curvas são sempre do
-# PpgProcessor. Comparação na BIDMC e no sensor real (../ppg-pipeline/scripts/comparison): o
-# pipeline erra menos a FC, e o PpgProcessor a FR, sem o falso 6–7 irpm das ondas de Mayer.
-set(MONITOR_NEWS2_PPG_ALGORITHM "hybrid" CACHE STRING
-    "Cálculo de FC/SpO2/FR: processor, pipeline, hybrid ou refined")
-set_property(CACHE MONITOR_NEWS2_PPG_ALGORITHM
-    PROPERTY STRINGS processor pipeline hybrid refined)
 
+# FC, SpO₂ e FR vêm sempre do método do ../ppg-pipeline (MSPTD + Smart Fusion de Karlen)
 add_subdirectory(../ppg-pipeline ppg-pipeline)
 
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Quick Test)
@@ -37,15 +28,14 @@ add_library(monitor_core STATIC
     src/core/SpokenNumber.cpp
     src/core/TrendTracker.h
     src/core/TrendTracker.cpp
-    src/core/Biquad.h
-    src/core/PpgProcessor.h
-    src/core/PpgProcessor.cpp
+    src/core/FingerContactDetector.h
+    src/core/FingerContactDetector.cpp
+    src/core/PlethysmographyDisplay.h
+    src/core/PlethysmographyDisplay.cpp
     src/core/LiveSignalBuffer.h
     src/core/LiveSignalBuffer.cpp
     src/core/PipelineVitalsEstimator.h
     src/core/PipelineVitalsEstimator.cpp
-    src/core/PpgDecimator.h
-    src/core/PpgDecimator.cpp
     # lógica da FIFO do MAX30102 sem acesso ao barramento: entra também no PC, para os testes
     src/sensors/Max30102Fifo.h
     src/sensors/Max30102Fifo.cpp
@@ -65,20 +55,6 @@ add_library(monitor_core STATIC
 )
 target_include_directories(monitor_core PUBLIC src)
 target_link_libraries(monitor_core PUBLIC Qt6::Core ppg_pipeline)
-if(MONITOR_NEWS2_PPG_ALGORITHM STREQUAL "pipeline")
-    target_compile_definitions(monitor_core PUBLIC MONITOR_NEWS2_PPG_PIPELINE)
-elseif(MONITOR_NEWS2_PPG_ALGORITHM STREQUAL "hybrid")
-    target_compile_definitions(monitor_core PUBLIC
-        MONITOR_NEWS2_PPG_PIPELINE
-        MONITOR_NEWS2_PPG_HYBRID
-    )
-elseif(MONITOR_NEWS2_PPG_ALGORITHM STREQUAL "refined")
-    target_compile_definitions(monitor_core PUBLIC MONITOR_NEWS2_PPG_REFINED_HEART_RATE)
-elseif(NOT MONITOR_NEWS2_PPG_ALGORITHM STREQUAL "processor")
-    message(FATAL_ERROR
-        "MONITOR_NEWS2_PPG_ALGORITHM deve ser processor, pipeline, hybrid ou refined")
-endif()
-message(STATUS "FC/SpO2/FR via ${MONITOR_NEWS2_PPG_ALGORITHM}")
 
 if(MONITOR_NEWS2_HARDWARE)
     target_sources(monitor_core PRIVATE
@@ -147,10 +123,6 @@ qt_add_qml_module(monitor-news2
 target_include_directories(monitor-news2 PRIVATE src/app src/ui)
 target_link_libraries(monitor-news2 PRIVATE monitor_core Qt6::Gui Qt6::Quick)
 
-# exporta FC/FR do PpgProcessor no formato do ppg-pipeline, para a validação nas bases públicas
-add_executable(ppg-processor-export tools/PpgProcessorExport.cpp)
-target_link_libraries(ppg-processor-export PRIVATE monitor_core)
-
 enable_testing()
 
 function(add_monitor_test name)
@@ -163,8 +135,8 @@ add_monitor_test(tst_news2score)
 add_monitor_test(tst_alarmpolicy)
 add_monitor_test(tst_spokennumber)
 add_monitor_test(tst_trendtracker)
-add_monitor_test(tst_ppgprocessor)
 add_monitor_test(tst_pipelinevitalsestimator)
+add_monitor_test(tst_fingercontactdetector)
+add_monitor_test(tst_plethysmographydisplay)
 add_monitor_test(tst_ds18b20thermometer)
 add_monitor_test(tst_max30102fifo)
-add_monitor_test(tst_ppgdecimator)

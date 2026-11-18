@@ -6,6 +6,8 @@ em repouso com o dedo no sensor durante todas as medições.
 **Código usado no estudo: commit `16b4a99`.** Os scripts de `scripts/` usam, desse commit:
 - o gravador `software/bringup/max30102/PpgBackendRecorder.cpp`;
 - as classes de acesso do app, `software/monitor-news2/src/sensors/Max30102.*` e `Max30102Iio.*`;
+- o `PpgProcessor` do app (`software/monitor-news2/src/core/PpgProcessor.*`), que o
+  `scripts/replay_ppg.cpp` usa para calcular as medidas;
 - o script de boot `buildroot/external/package/monitor-news2/S30max30102`;
 - a imagem com o overlay e o módulo do driver IIO.
 

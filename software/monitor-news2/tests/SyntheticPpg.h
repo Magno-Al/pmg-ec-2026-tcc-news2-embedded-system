@@ -1,14 +1,15 @@
 #pragma once
 
-#include "core/PpgProcessor.h"
+#include <PPG.hpp>
 
 #include <cmath>
 #include <cstdint>
 #include <random>
 
-// PPG sintético com parâmetros conhecidos. A respiração modula o sinal das três formas que o
-// processador procura: linha de base (RIIV), amplitude do pulso (RIAV) e FC (arritmia sinusal
-// respiratória, RIFV). A razão R entre as perfusões do vermelho e do IR define a SpO₂.
+// PPG sintético com parâmetros conhecidos, à taxa do MAX30102 no app (100 Hz). A respiração
+// modula o sinal das três formas que o pipeline procura: linha de base (RIIV), amplitude do
+// pulso (RIAV) e FC (arritmia sinusal respiratória, RIFV). A razão R entre as perfusões do
+// vermelho e do IR define a SpO₂.
 class SyntheticPpg
 {
 public:
@@ -16,9 +17,11 @@ public:
     double respiratoryRate = 15.0;
     double ratio = 0.6;
     double noiseCounts = 30.0;
-    double sampleRateHz = PpgProcessor::SampleRateHz;
+    // Max30102::FullRateHz, sem incluir o Max30102.h (Qt): o pipeline-window-benchmark usa
+    // este arquivo sem o Qt
+    double sampleRateHz = 100.0;
 
-    PpgSample next()
+    PPGSample next()
     {
         const double seconds = m_sampleIndex / sampleRateHz;
         ++m_sampleIndex;
@@ -33,8 +36,8 @@ public:
         const double redPerfusion = ratio * infraredPerfusion;
         const double pulse = pulseShape(m_cardiacPhase);
 
-        PpgSample sample;
-        sample.infrared = uint32_t(infraredDc * (1.0 - infraredPerfusion * pulse) + noise());
+        PPGSample sample{};
+        sample.ir = uint32_t(infraredDc * (1.0 - infraredPerfusion * pulse) + noise());
         sample.red = uint32_t(redDc * (1.0 - redPerfusion * pulse) + noise());
         return sample;
     }

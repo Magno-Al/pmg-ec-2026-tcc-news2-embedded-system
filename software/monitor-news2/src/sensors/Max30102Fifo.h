@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/PpgProcessor.h"
+#include <PPG.hpp>
 
 #include <cstdint>
 
@@ -26,6 +26,6 @@ int availableSampleCount(uint8_t writePointer, uint8_t readPointer, uint8_t over
 uint32_t channelValue(const uint8_t* bytes);
 
 // Uma amostra a partir dos 6 bytes da FIFO: vermelho nos 3 primeiros, IR nos 3 seguintes.
-PpgSample decodeSample(const uint8_t* bytes);
+PPGSample decodeSample(const uint8_t* bytes);
 
 }

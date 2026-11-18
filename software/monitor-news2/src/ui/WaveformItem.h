@@ -9,9 +9,11 @@
 #include <QTimer>
 
 // Curva em varredura, como nos monitores clínicos: a cada quadro desenha só os pixels novos e
-// apaga uma faixa à frente — barato no Raspberry Pi. Com liveChannel apontando para um canal
-// que tem amostras do sensor (LiveSignalBuffer), desenha o sinal real; sem amostras (build com
-// mock), a forma de onda é sintetizada a partir da frequência.
+// apaga uma faixa à frente — barato no Raspberry Pi. Com liveChannel em Plethysmography e
+// amostras do sensor no LiveSignalBuffer, desenha o sinal real. Sem amostras, a forma de onda é
+// sintetizada a partir da frequência só no build com mock; no build com hardware
+// (MONITOR_NEWS2_HARDWARE) a curva fica vazia, para a tela nunca mostrar uma onda que o sensor
+// não mediu.
 class WaveformItem : public QQuickPaintedItem
 {
     Q_OBJECT
@@ -38,8 +40,7 @@ public:
     enum class LiveChannel
     {
         None,
-        Plethysmography,
-        Respiration
+        Plethysmography
     };
     Q_ENUM(LiveChannel)
 

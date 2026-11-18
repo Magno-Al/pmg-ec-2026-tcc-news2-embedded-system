@@ -1,7 +1,6 @@
 #pragma once
 
-#include "core/PpgDecimator.h"
-#include "core/PpgProcessor.h"
+#include <PPG.hpp>
 
 #include <QString>
 
@@ -10,8 +9,8 @@
 
 // Driver do MAX30102 pela /dev/i2c-N (i2c-dev, em espaço de usuário). Configura o modo SpO₂
 // (vermelho + IR) a 400 amostras/s com média de 4 na FIFO, ou seja, 100 amostras/s entregues,
-// e lê a FIFO por polling: o pino INT não é usado. Entrega as amostras de 100 Hz sem alteração
-// e a média de cada 4 delas (25 Hz) para o PpgProcessor.
+// e lê a FIFO por polling: o pino INT não é usado. Entrega as amostras de 100 Hz sem alteração,
+// no tipo de amostra do ppg-pipeline (PPGSample: contagens brutas de 18 bits).
 class Max30102
 {
 public:
@@ -30,14 +29,9 @@ public:
     bool isOpen() const { return m_fileDescriptor >= 0; }
     QString errorString() const { return m_errorString; }
 
-    // samples: 25 Hz (média de 4), como o PpgProcessor espera; fullRateSamples, se dado,
-    // recebe também as amostras de 100 Hz do chip, sem a média. Um bloco de média incompleto
-    // fica guardado para a leitura seguinte. false em falha de I2C (sensor desconectado, por
-    // exemplo); as amostras lidas antes da falha ficam nos vetores.
-    bool readAvailableSamples(
-        std::vector<PpgSample>& samples,
-        std::vector<PpgSample>* fullRateSamples = nullptr
-    );
+    // acrescenta a samples as amostras de 100 Hz prontas na FIFO. false em falha de I2C
+    // (sensor desconectado, por exemplo); as amostras lidas antes da falha ficam no vetor.
+    bool readAvailableSamples(std::vector<PPGSample>& samples);
 
     // Amostras de 100 Hz que o chip descartou com a FIFO cheia (contador de overflow), somadas
     // desde a criação do objeto, inclusive entre reconexões. A FIFO cobre 320 ms a 100 Hz.
@@ -51,6 +45,5 @@ private:
     QString m_devicePath;
     int m_fileDescriptor = -1;
     QString m_errorString;
-    PpgDecimator m_decimator;
     uint64_t m_lostSampleCount = 0;
 };

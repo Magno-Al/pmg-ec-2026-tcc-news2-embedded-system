@@ -61,52 +61,54 @@ flowchart TD
         M1["MAX30102: 400 Hz, média de 4 no chip<br/>LED 7 mA, ADC 4096 nA, pulso 411 µs"]
         M2["Max30102: lê a FIFO do chip pela /dev/i2c-1<br/>a cada 40 ms (FIFO de 32 amostras = 320 ms)"]
         M4{"Amostras de<br/>100 Hz"}
-        M5["Média de 4 → 25 Hz"]
         T1["Ds18b20Thermometer: thread própria<br/>lê w1_slave a cada 10 s (~750 ms)<br/>valida CRC, descarta 85,000 °C"]
         M1 --> M2 --> M4
-        M4 --> M5
     end
 
-    subgraph PP["PpgProcessor (25 Hz)"]
-        C["Contato do dedo<br/>IR > 50 000 entra / < 30 000 sai<br/>confirmação 12 / 8 amostras"]
-        F["Butterworth 2ª ordem<br/>passa-alta 0,5 Hz + passa-baixa 4 Hz<br/>IR e vermelho invertidos"]
-        P["Picos: máximo local ±0,24 s<br/>> 50% da amplitude recente<br/>intervalo 0,3–2 s"]
-        FC1["FC rápida: média dos últimos 8 intervalos<br/>a ±25% da mediana"]
-        SP["SpO₂: R por batimento, mediana de 8<br/>curva Maxim RD117"]
-        FR["FR: linha de base + amplitude + intervalo<br/>passa-banda 0,13–0,6 Hz, janela de 32 s<br/>soma dos espectros (Hann)"]
-        C --> F --> P
-        P --> FC1
-        P --> SP
-        P --> FR
+    C["FingerContactDetector<br/>IR > 50 000 entra / < 30 000 sai<br/>confirmação 0,48 / 0,32 s"]
+
+    subgraph PL["PipelineVitalsEstimator (código do ppg-pipeline, 100 Hz)"]
+        F["Butterworth 2ª ordem<br/>passa-alta 0,5 Hz + passa-baixa 4 Hz<br/>IR e vermelho"]
+        Q["Qualidade por janela, a cada 5 s<br/>perfusão 0,4–15%"]
+        MS["FC: MSPTD sobre 30 s<br/>mediana das FCs batimento a batimento"]
+        SP["SpO₂: 110 − 25·R sobre 30 s"]
+        FR["FR: Smart Fusion de Karlen sobre 60 s"]
+        F --> Q
+        Q --> MS
+        Q --> SP
+        Q --> FR
     end
 
-    subgraph RF["PipelineVitalsEstimator (100 Hz, só FC)"]
-        MS["MSPTD sobre 30 s<br/>mediana das FCs batimento a batimento<br/>controle de qualidade por perfusão 0,4–15%"]
-    end
-
-    M5 --> C
-    M4 --> MS
-    CR["Correção pela taxa real do sensor<br/>(~1% abaixo da nominal, medida após 20 s)"]
-    FC1 -- "até ~35 s" --> CR
-    MS -- "depois de ~35 s" --> CR
-    SP --> CR
+    M4 --> C
+    C -- "com dedo" --> F
+    F -- "IR filtrado" --> PD["PlethysmographyDisplay<br/>só tela: invertido, 0,1–0,9 em 2 s"]
+    CR["Correção da FC e da FR pela taxa real do sensor<br/>(~1% abaixo da nominal, medida após 20 s)"]
+    MS --> CR
     FR --> CR
-    CR --> MC["MonitorController<br/>valores a cada 1 s"]
+    CR --> MC["MonitorController<br/>valores a cada 1 s<br/>(0 = ausente)"]
+    SP --> MC
+    C -- "contato" --> MC
     T1 --> MC
-    MC --> UI["Tela: valores, curvas<br/>(PPG real e respiração)"]
+    PD --> UI["Tela: valores e curva de PPG real<br/>(sem curva de respiração)"]
+    MC --> UI
     MC --> AL["Avaliação de alarmes<br/>(seção 2.2)"]
 ```
 
 | Classe | Comunicação | Cálculo / responsabilidade |
 |---|---|---|
-| `Max30102` | I²C direto via `/dev/i2c-1` (i2c-dev, polling a 40 ms) | Lê as amostras de 100 Hz e gera também as de 25 Hz |
-| `PpgProcessor` | — | Contato, filtros, picos, FC rápida, SpO₂, FR, curvas da tela |
-| `PipelineVitalsEstimator` | — | FC pelo MSPTD (código do `ppg-pipeline`) a 100 Hz |
+| `Max30102` | I²C direto via `/dev/i2c-1` (i2c-dev, polling a 40 ms) | Lê as amostras de 100 Hz |
+| `FingerContactDetector` | — | Dedo no sensor pelo IR bruto. Os limiares são parâmetro de engenharia, a calibrar |
+| `PipelineVitalsEstimator` | — | FC, SpO₂ e FR pelo código do `ppg-pipeline`, a 100 Hz |
+| `PlethysmographyDisplay` | — | Curva da tela, só apresentação |
 | `Ds18b20Thermometer` | 1-Wire via `w1-therm`, GPIO 4 | Temperatura a cada 10 s, numa thread própria |
 | `Max30102VitalSignsSource` | — | Junta tudo, corrige pela taxa real e publica a cada 1 s |
 | `MonitorController` | — | Estado da tela, alarmes, NEWS2, sessão do paciente |
 
-A comparação dos métodos de cálculo está em [comparativo.md](../comparativo.md).
+Uma janela reprovada, ou ainda não fechada, deixa o parâmetro ausente: ele aparece como "—" na
+tela, e o último valor não se repete.
+
+A comparação dos métodos de cálculo que levou a usar só o `ppg-pipeline` está em
+[comparativo.md](../comparativo.md).
 
 ### 2.2 Alarmes do monitoramento (proposta)
 
@@ -120,9 +122,9 @@ falsos alarmes [3][4][5].
 |---|---|---|---|---|
 | FC | ≤ 40 ou ≥ 131 bpm | 41–50 ou 111–130 bpm | 15 s | Faixas do NEWS2 [1]; atraso [4][5] |
 | SpO₂ (escala 1) | ≤ 91% | 92–93% | 15 s | Faixas do NEWS2 [1]; atraso [4][5] |
-| FR | ≤ 8 ou ≥ 25 irpm | 21–24 irpm | 60 s | Faixas do NEWS2 [1]; a FR já é média de 32 s |
+| FR | ≤ 8 ou ≥ 25 irpm | 21–24 irpm | 60 s | Faixas do NEWS2 [1]; a FR já sai de uma janela de 60 s |
 | Temperatura | ≤ 35,0 °C | ≥ 39,1 °C | 5 min | Faixas do NEWS2 [1]; o sensor leva ~1,5 min para aquecer |
-| Dedo fora do sensor | — | técnico | ~0,3 s (8 amostras) | Já implementado. Avaliar 10 s para não alarmar a cada ajuste do dedo |
+| Dedo fora do sensor | — | técnico | 0,32 s | Já implementado. Avaliar 10 s para não alarmar a cada ajuste do dedo |
 | Sensor sem resposta | — | técnico | 3 s | Já implementado (vigia: 3 s sem amostra reabre o sensor) |
 | Sem temperatura | — | técnico | 30 s | Proposta |
 
@@ -253,8 +255,8 @@ está na imagem (Qt SQL + SQLite), no cartão SD, em modo WAL.
 | `predictions` | Probabilidade, versão do modelo, horas imputadas | 1×/h | Sessão do paciente |
 | `events` | Alarmes, silêncios, reconhecimentos, falhas de sensor | A cada evento | Sessão do paciente |
 
-O sinal PPG bruto **não** é armazenado (25–100 amostras/s gastariam o SD), só os valores por
-minuto. Para pesquisa, o gravador de bancada já existe (`software/bringup`).
+O sinal PPG bruto **não** é armazenado (100 amostras/s gastariam o SD), só os valores por
+minuto. Para pesquisa, o traço do app (`MONITOR_NEWS2_TRACE`) grava as amostras de 100 Hz.
 
 ## 6. O que ainda falta definir
 
@@ -270,12 +272,13 @@ Itens que o rascunho não cobre e que afetam a implementação ou o texto do TCC
 | 6 | **LED e buzzer** | O alarme sonoro e visual ainda é simulado no console | Não implementado (`AlarmIndicator`) |
 | 7 | **Limiar da predição** | Hoje é 50% fixo no código; deveria vir da curva de precisão e recall da validação | Definir com o resultado do modelo |
 | 8 | **Exibição da incerteza** | Mostrar quantas horas foram imputadas e a versão do modelo | Proposta na seção 4.2 |
-| 9 | **Calibração da SpO₂** | Os dois métodos diferem ~3 pontos, e 95% contra 96% muda o NEWS2 | Comparar com oxímetro comercial |
+| 9 | **Calibração da SpO₂** | A reta 110 − 25·R do pipeline é provisória, e 95% contra 96% muda o NEWS2 | Comparar com oxímetro comercial |
 | 10 | **Local da temperatura** | Dedo ou pele ficam abaixo da temperatura central; o NEWS2 usa a corporal | Definir o local do sensor e, se preciso, um ajuste |
 | 11 | **Validação da FR** | Falta referência: contagem manual de 60 s ou respiração ritmada | Montar o protocolo |
 | 12 | **Sessão do paciente e privacidade** | Início e fim de monitoramento, identificação, LGPD se houver identificação | O app tem "plantão"; falta a identificação |
 | 13 | **Recuperação de falhas** | O app pode cair: quem reinicia? E se o sensor travar? | Vigia de 3 s existe; falta reiniciar o app automaticamente |
 | 14 | **Desempenho e boot** | Tempo até o primeiro valor e o primeiro NEWS2 depois de ligar | Medir e documentar |
+| 15 | **FR ausente com frequência** | A FR só vem do Smart Fusion de Karlen, que estimou a FR em 55% das janelas na BIDMC (`software/ppg-pipeline/README.md`). Sem FR, o NEWS2 é calculado sobre o total parcial, e o preditor, que exige o snapshot completo, deixa de rodar com a mesma frequência | Comportamento mantido; só registrado |
 
 ## 7. Referências
 

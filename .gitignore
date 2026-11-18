@@ -17,5 +17,4 @@ software/monitor-news2/build*/
 *.user
 
 # bring-up: binários compilados e gravações de PPG (dado fisiológico do voluntário)
-software/bringup/max30102/max30102-hr-test
 software/bringup/max30102/estudo-comparativo/dados/

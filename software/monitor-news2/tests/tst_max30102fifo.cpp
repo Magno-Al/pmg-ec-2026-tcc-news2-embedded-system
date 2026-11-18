@@ -84,10 +84,10 @@ void Max30102FifoTest::test_decodesRedThenInfrared()
 {
     const uint8_t bytes[Max30102Fifo::BytesPerSample] = {0x02, 0x22, 0xE0, 0xFD, 0xE2, 0x40};
 
-    const PpgSample sample = Max30102Fifo::decodeSample(bytes);
+    const PPGSample sample = Max30102Fifo::decodeSample(bytes);
 
     QCOMPARE(sample.red, uint32_t(0x0222E0));
-    QCOMPARE(sample.infrared, uint32_t(123456));
+    QCOMPARE(sample.ir, uint32_t(123456));
 }
 
 QTEST_APPLESS_MAIN(Max30102FifoTest)

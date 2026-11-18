@@ -5,16 +5,22 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 
 namespace
 {
 
+#ifdef MONITOR_NEWS2_HARDWARE
+constexpr bool SynthesizesWithoutSamples = false;
+#else
+constexpr bool SynthesizesWithoutSamples = true;
+#endif
+
 constexpr int FrameMilliseconds = 33;
 constexpr int EraseAheadPixels = 16;
 constexpr double LineWidth = 2.0;
-// O sensor entrega amostras em rajadas (o PPG a cada 40 ms; a respiração a cada batimento,
-// ~0,8 s): a curva lê com atraso fixo para nunca alcançar a escrita, e ressincroniza se ficar
-// para trás demais.
+// O sensor entrega amostras em rajadas (a cada 40 ms): a curva lê com atraso fixo para nunca
+// alcançar a escrita, e ressincroniza se ficar para trás demais.
 constexpr double LiveDelaySeconds = 0.4;
 constexpr int LiveMinimumDelaySamples = 8;
 constexpr double LiveMaximumLagSeconds = 3.0;
@@ -111,11 +117,7 @@ const LiveSignalBuffer* WaveformItem::liveBuffer() const
     {
         return nullptr;
     }
-    const LiveSignalBuffer& buffer = LiveSignalBuffer::forChannel(
-        m_liveChannel == LiveChannel::Plethysmography
-            ? LiveSignalBuffer::Channel::Plethysmography
-            : LiveSignalBuffer::Channel::Respiration
-    );
+    const LiveSignalBuffer& buffer = LiveSignalBuffer::plethysmography();
     return buffer.hasData() ? &buffer : nullptr;
 }
 
@@ -206,22 +208,29 @@ void WaveformItem::advance()
     const LiveSignalBuffer* live = m_isActive ? liveBuffer() : nullptr;
     for(int pixel = 0; pixel < newPixels; ++pixel)
     {
-        double value = 0.0;
+        std::optional<double> value;
         if(live)
         {
             value = nextLiveValue(*live, speed);
         }
-        else
+        else if(SynthesizesWithoutSamples)
         {
             m_phase = std::fmod(m_phase + (m_rate / 60.0) / speed, 1.0);
             value = sampleAt(m_phase);
         }
-        const double y = topMargin + (1.0 - value) * (height - topMargin - bottomMargin);
-        if(m_lastY >= 0.0)
+        if(value)
         {
-            painter.drawLine(QPointF(m_cursorX - 1, m_lastY), QPointF(m_cursorX, y));
+            const double y = topMargin + (1.0 - *value) * (height - topMargin - bottomMargin);
+            if(m_lastY >= 0.0)
+            {
+                painter.drawLine(QPointF(m_cursorX - 1, m_lastY), QPointF(m_cursorX, y));
+            }
+            m_lastY = y;
         }
-        m_lastY = y;
+        else
+        {
+            m_lastY = -1.0;
+        }
         ++m_cursorX;
         if(m_cursorX >= width)
         {

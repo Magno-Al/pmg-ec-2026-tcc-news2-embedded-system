@@ -19,12 +19,9 @@ uint32_t channelValue(const uint8_t* bytes)
     return value & SampleMask;
 }
 
-PpgSample decodeSample(const uint8_t* bytes)
+PPGSample decodeSample(const uint8_t* bytes)
 {
-    PpgSample sample;
-    sample.red = channelValue(bytes);
-    sample.infrared = channelValue(bytes + 3);
-    return sample;
+    return PPGSample{channelValue(bytes), channelValue(bytes + 3)};
 }
 
 }

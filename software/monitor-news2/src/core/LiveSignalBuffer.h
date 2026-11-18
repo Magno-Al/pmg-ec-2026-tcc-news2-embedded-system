@@ -3,19 +3,14 @@
 #include <cstdint>
 #include <vector>
 
-// Amostras já normalizadas (0..1) de uma curva ao vivo, endereçadas por um índice absoluto que
-// só cresce. A fonte do sensor escreve; o WaveformItem lê com atraso fixo, interpolando, para
-// varrer a tela suavemente mesmo com o sensor entregando as amostras em rajadas.
+// Amostras já normalizadas (0..1) da curva de pletismografia ao vivo, endereçadas por um índice
+// absoluto que só cresce. A fonte do sensor escreve; o WaveformItem lê com atraso fixo,
+// interpolando, para varrer a tela suavemente mesmo com o sensor entregando as amostras em
+// rajadas. É a única curva com sinal real: não há curva de respiração.
 class LiveSignalBuffer
 {
 public:
-    enum class Channel
-    {
-        Plethysmography,
-        Respiration
-    };
-
-    static LiveSignalBuffer& forChannel(Channel channel);
+    static LiveSignalBuffer& plethysmography();
 
     void configure(double sampleRateHz);
     void append(double normalizedValue);

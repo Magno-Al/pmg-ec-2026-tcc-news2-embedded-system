@@ -6,16 +6,16 @@
 namespace
 {
 
-// ~20 s de pletismografia a 25 Hz: folga de sobra para o atraso de leitura da curva
+// ~5 s de pletismografia a 100 Hz: acima do atraso máximo de leitura da curva (3 s, no
+// WaveformItem)
 constexpr int BufferCapacity = 512;
 
 }
 
-LiveSignalBuffer& LiveSignalBuffer::forChannel(Channel channel)
+LiveSignalBuffer& LiveSignalBuffer::plethysmography()
 {
-    static LiveSignalBuffer plethysmography(BufferCapacity);
-    static LiveSignalBuffer respiration(BufferCapacity);
-    return channel == Channel::Plethysmography ? plethysmography : respiration;
+    static LiveSignalBuffer buffer(BufferCapacity);
+    return buffer;
 }
 
 LiveSignalBuffer::LiveSignalBuffer(int capacity)

@@ -4,8 +4,9 @@
 // sensor). Sem sensor: o sinal é o PPG sintético dos testes (tests/SyntheticPpg.h).
 //
 // Configurações medidas:
-//   refined: só FC, a 100 Hz (Max30102::FullRateHz), como no modo refined do app;
-//   pipeline: FC, SpO₂ e FR a 25 Hz, como nos modos pipeline e hybrid.
+//   app: FC, SpO₂ e FR a 100 Hz (Max30102::FullRateHz), como o app calcula;
+//   fc-100 e spo2-fr-25: as duas partes da alternativa registrada no README do app (FC a
+//   100 Hz num estimador e SpO₂/FR a 25 Hz em outro); o custo dela é a soma das duas.
 //
 // Uso: pipeline-window-benchmark [minutos de sinal, padrão 10]
 // Compilar em Release (-O2/-O3 e -DNDEBUG): ver README.md desta pasta.
@@ -48,7 +49,7 @@ Result run(int sampleRateHz, PipelineVitalsEstimator::Outputs outputs, int minut
     long otherCount = 0;
     for(long n = 1; n <= sampleCount; ++n)
     {
-        const PpgSample sample = ppg.next();
+        const PPGSample sample = ppg.next();
         const auto start = std::chrono::steady_clock::now();
         estimator.addSample(sample);
         const auto end = std::chrono::steady_clock::now();
@@ -85,7 +86,7 @@ void report(const char* name, const Result& result)
     std::sort(sorted.begin(), sorted.end());
     const double median = sorted[sorted.size() / 2];
     std::printf(
-        "%-9s janelas=%zu  média=%.2f ms  mediana=%.2f ms  mínimo=%.2f ms  máximo=%.2f ms  "
+        "%-11s janelas=%zu  média=%.2f ms  mediana=%.2f ms  mínimo=%.2f ms  máximo=%.2f ms  "
         "(demais amostras: %.2f µs cada; FC em %d janelas)\n",
         name, times.size(), mean, median, sorted.front(), sorted.back(),
         result.otherSampleMicroseconds, result.heartRateCount
@@ -98,7 +99,8 @@ int main(int argc, char** argv)
 {
     const int minutes = argc > 1 ? std::max(1, std::atoi(argv[1])) : 10;
     std::printf("PPG sintético de %d min por configuração\n", minutes);
-    report("refined", run(100, PipelineVitalsEstimator::Outputs::HeartRateOnly, minutes));
-    report("pipeline", run(25, PipelineVitalsEstimator::Outputs::All, minutes));
+    report("app", run(100, PipelineVitalsEstimator::Outputs::All, minutes));
+    report("fc-100", run(100, PipelineVitalsEstimator::Outputs::HeartRateOnly, minutes));
+    report("spo2-fr-25", run(25, PipelineVitalsEstimator::Outputs::All, minutes));
     return 0;
 }

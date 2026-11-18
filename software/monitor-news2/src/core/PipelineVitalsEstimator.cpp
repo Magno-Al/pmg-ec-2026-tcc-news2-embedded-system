@@ -1,6 +1,5 @@
 #include "PipelineVitalsEstimator.h"
 
-#include <PPG.hpp>
 #include <PPGHeartRate.hpp>
 #include <PPGQuality.hpp>
 #include <PPGRespiratoryRate.hpp>
@@ -45,13 +44,13 @@ void PipelineVitalsEstimator::reset()
     m_respiratoryRate.reset();
 }
 
-void PipelineVitalsEstimator::addSample(const PpgSample& sample)
+double PipelineVitalsEstimator::addSample(const PPGSample& sample)
 {
     const PPGWindowSample windowSample{
         sample.red,
-        sample.infrared,
+        sample.ir,
         m_redFilter->process(sample.red),
-        m_infraredFilter->process(sample.infrared)
+        m_infraredFilter->process(sample.ir)
     };
     const bool wasFull = ppg_buffer_is_full(m_buffer);
     if(ppg_buffer_push(m_buffer, windowSample))
@@ -62,6 +61,7 @@ void PipelineVitalsEstimator::addSample(const PpgSample& sample)
     {
         evaluateCardiacWindowWhileFilling();
     }
+    return windowSample.ir_filtered;
 }
 
 void PipelineVitalsEstimator::evaluateCardiacWindowWhileFilling()

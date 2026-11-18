@@ -94,7 +94,6 @@ Item {
                 score: Monitor.vitals.respiratoryRateScore
                 rate: Monitor.vitals.respiratoryRate
                 shape: WaveformItem.Respiration
-                liveChannel: WaveformItem.Respiration
                 isExpanded: screen.expandedKey === key
                 isCompact: screen.expandedKey !== "" && !isExpanded
                 onToggled: screen.toggleExpanded(key)
