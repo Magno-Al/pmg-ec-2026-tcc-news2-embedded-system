@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Distribuição da Base</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page:           #f3f2ee;
+    --surface-1:      #fcfcfb;
+    --surface-2:      #f6f5f1;
+    --highlight:      #eef4fc;
+    --highlight-edge: #2a78d6;
+    --border:         #e4e3dd;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #7c7b76;
+    --risk:           #eb6834;   /* NEWS2 >= 5  (categórico, slot laranja) */
+    --stable:         #2a78d6;   /* NEWS2 < 5   (categórico, slot azul)    */
+    --track:          #ecebe6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --page: #121211; --surface-1: #1a1a19; --surface-2: #222220;
+      --highlight: #1c2533; --highlight-edge: #3987e5; --border: #33332f;
+      --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #94938b;
+      --risk: #d95926; --stable: #3987e5; --track: #2c2c29;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #121211; --surface-1: #1a1a19; --surface-2: #222220;
+    --highlight: #1c2533; --highlight-edge: #3987e5; --border: #33332f;
+    --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #94938b;
+    --risk: #d95926; --stable: #3987e5; --track: #2c2c29;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--page);
+    color: var(--text-primary);
+    font-family: "Segoe UI", "Inter", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .frame { padding: 40px; }
+  .card {
+    max-width: 1120px;
+    margin: 0 auto;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 36px 40px 28px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.04);
+  }
+
+  /* ---------- cabeçalho ---------- */
+  h1 { font-size: 26px; line-height: 1.25; font-weight: 650; margin: 0 0 8px; letter-spacing: -.01em; }
+
+  .legend { display: flex; gap: 24px; margin: 24px 0 14px; font-size: 13px; color: var(--text-secondary); }
+  .legend span { display: inline-flex; align-items: center; gap: 8px; }
+  .sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  .sw.risk { background: var(--risk); }
+  .sw.stable { background: var(--stable); }
+
+  /* ---------- tabela ---------- */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: separate; border-spacing: 0; font-variant-numeric: tabular-nums; }
+  thead th {
+    font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+    color: var(--text-muted); text-align: right; padding: 0 16px 12px;
+    border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  thead th:first-child, thead th.dist { text-align: left; }
+  thead th:first-child { padding-left: 20px; }
+  thead .hsw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; vertical-align: 1px; }
+
+  tbody td { padding: 20px 16px; border-bottom: 1px solid var(--border); text-align: right; vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody td:first-child { text-align: left; padding-left: 20px; }
+
+  .level { font-size: 16px; font-weight: 600; margin: 0 0 3px; display: flex; align-items: center; gap: 10px; }
+  .desc { font-size: 13px; color: var(--text-secondary); margin: 0; }
+
+  .num { font-size: 16px; font-weight: 600; white-space: nowrap; }
+  .pct { display: block; font-size: 13px; font-weight: 500; color: var(--text-secondary); margin-top: 2px; }
+  .total { font-size: 16px; font-weight: 500; color: var(--text-secondary); white-space: nowrap; }
+
+  /* barra 100% empilhada: segmentos com 2px de respiro e pontas de 4px */
+  td.dist { text-align: left; width: 300px; padding-right: 20px; }
+  .bar { display: flex; gap: 2px; height: 14px; width: 100%; }
+  .seg { height: 100%; }
+  .seg.risk { background: var(--risk); border-radius: 4px 0 0 4px; }
+  .seg.stable { background: var(--stable); border-radius: 0 4px 4px 0; }
+
+  @media (max-width: 760px) {
+    .frame { padding: 16px; }
+    .card { padding: 24px 16px; }
+    td.dist { width: 180px; }
+  }
+</style>
+</head>
+<body>
+<div class="frame">
+<main class="card">
+  <h1>Distribuição de NEWS2 ≥ 5 vs. NEWS2 &lt; 5</h1>
+
+  <div class="legend" aria-label="Legenda">
+    <span><i class="sw risk"></i>NEWS2 ≥ 5 (em risco)</span>
+    <span><i class="sw stable"></i>NEWS2 &lt; 5 (fora de risco)</span>
+  </div>
+
+  <div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th scope="col">Nível</th>
+        <th scope="col"><i class="hsw" style="background:var(--risk)"></i>NEWS2 ≥ 5</th>
+        <th scope="col"><i class="hsw" style="background:var(--stable)"></i>NEWS2 &lt; 5</th>
+        <th scope="col">Total</th>
+        <th scope="col" class="dist">Distribuição</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          <p class="level">Horas medidas</p>
+          <p class="desc">NEWS2 no instante t</p>
+        </td>
+        <td><span class="num">256.823</span><span class="pct">18,3%</span></td>
+        <td><span class="num">1.145.412</span><span class="pct">81,7%</span></td>
+        <td class="total">1.402.235</td>
+        <td class="dist">
+          <div class="bar" role="img" aria-label="18,3% NEWS2 ≥ 5, 81,7% NEWS2 < 5">
+            <div class="seg risk" style="width:18.3%" title="NEWS2 ≥ 5: 256.823 (18,3%)"></div>
+            <div class="seg stable" style="width:81.7%" title="NEWS2 < 5: 1.145.412 (81,7%)"></div>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <p class="level">Janelas do modelo</p>
+          <p class="desc">Alvo Y: NEWS2 ≥ 5 em alguma das próximas 6h</p>
+        </td>
+        <td><span class="num">440.452</span><span class="pct">39,1%</span></td>
+        <td><span class="num">686.065</span><span class="pct">60,9%</span></td>
+        <td class="total">1.126.517</td>
+        <td class="dist">
+          <div class="bar" role="img" aria-label="39,1% NEWS2 ≥ 5, 60,9% NEWS2 < 5">
+            <div class="seg risk" style="width:39.1%" title="NEWS2 ≥ 5: 440.452 (39,1%)"></div>
+            <div class="seg stable" style="width:60.9%" title="NEWS2 < 5: 686.065 (60,9%)"></div>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <p class="level">Pacientes</p>
+          <p class="desc">Atingiram NEWS2 ≥ 5 em algum momento</p>
+        </td>
+        <td><span class="num">25.399</span><span class="pct">64,0%</span></td>
+        <td><span class="num">14.279</span><span class="pct">36,0%</span></td>
+        <td class="total">39.678</td>
+        <td class="dist">
+          <div class="bar" role="img" aria-label="64,0% NEWS2 ≥ 5, 36,0% NEWS2 < 5">
+            <div class="seg risk" style="width:64%" title="NEWS2 ≥ 5: 25.399 (64,0%)"></div>
+            <div class="seg stable" style="width:36%" title="NEWS2 < 5: 14.279 (36,0%)"></div>
+          </div>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+</main>
+</div>
+</body>
+</html>
