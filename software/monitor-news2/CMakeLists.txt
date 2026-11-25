@@ -100,6 +100,9 @@ qt_add_qml_module(monitor-news2
         qml/TopBar.qml
         qml/MonitorScreen.qml
         qml/WaveRow.qml
+        qml/VitalValuePanel.qml
+        qml/PulseOximetryRow.qml
+        qml/NoSignalOverlay.qml
         qml/TemperatureTile.qml
         qml/PressureTile.qml
         qml/ScorePanel.qml
