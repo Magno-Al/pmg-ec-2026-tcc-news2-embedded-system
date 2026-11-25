@@ -23,9 +23,10 @@ principal ficar travada por mais de cerca de 280 ms, amostras se perdem.
 - [ ] Confirmar no datasheet do MAX30102 (tabela de configurações permitidas no modo SpO₂, taxa
       × largura de pulso) que **400 amostras/s com pulso de 411 µs** é uma combinação aceita.
       O driver max30102 do Linux usa a mesma combinação, mas ela não foi conferida na tabela.
-- [ ] Confirmar no datasheet o comportamento da FIFO cheia com `FIFO_ROLLOVER_EN = 1`. O código
-      assume que, com overflow, os ponteiros de escrita e leitura ficam iguais e
-      `OVF_COUNTER > 0`, e aí lê as 32 amostras. Ver `Max30102Fifo::availableSampleCount`.
+- [x] Comportamento da FIFO cheia com `FIFO_ROLLOVER_EN = 1`, visto no equipamento: depois de
+      a leitura atrasar mais de 320 ms, os ponteiros nem sempre ficam iguais (ex.: leitura 0x16,
+      escrita 0x18, `OVF_COUNTER` 3). Com `OVF_COUNTER > 0` o código lê as 32 amostras, com os
+      ponteiros iguais ou não. Ver `Max30102Fifo::availableSampleCount`.
 - [ ] No PC, com o Qt 6.5 ou mais novo: `ctest --test-dir build` passa, incluindo
       `tst_max30102fifo` e `tst_ppgdecimator`.
 

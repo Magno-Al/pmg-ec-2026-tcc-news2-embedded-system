@@ -5,12 +5,11 @@ namespace Max30102Fifo
 
 int availableSampleCount(uint8_t writePointer, uint8_t readPointer, uint8_t overflowCounter)
 {
-    const int count = ((writePointer & PointerMask) - (readPointer & PointerMask)) & (Depth - 1);
-    if(count == 0 && (overflowCounter & PointerMask) > 0)
+    if((overflowCounter & PointerMask) > 0)
     {
         return Depth;
     }
-    return count;
+    return ((writePointer & PointerMask) - (readPointer & PointerMask)) & (Depth - 1);
 }
 
 uint32_t channelValue(const uint8_t* bytes)

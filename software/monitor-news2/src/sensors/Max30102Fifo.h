@@ -18,8 +18,9 @@ constexpr uint8_t PointerMask = 0x1F;
 constexpr uint32_t SampleMask = 0x3FFFF;
 
 // Amostras prontas para leitura, pelos ponteiros de escrita e leitura (com a volta do 31 para o
-// 0) e pelo contador de overflow. Ponteiros iguais são a FIFO vazia, a não ser que o contador de
-// overflow seja maior que zero: aí ela está cheia, com as 32 amostras disponíveis.
+// 0) e pelo contador de overflow. Contador de overflow maior que zero é a FIFO cheia, com as 32
+// amostras disponíveis, mesmo com os ponteiros diferentes: com a FIFO cheia o chip continua
+// escrevendo e os ponteiros perdem a referência. Sem overflow, ponteiros iguais são a FIFO vazia.
 int availableSampleCount(uint8_t writePointer, uint8_t readPointer, uint8_t overflowCounter);
 
 // Um canal a partir dos seus 3 bytes, do mais para o menos significativo, nos 18 bits do ADC.

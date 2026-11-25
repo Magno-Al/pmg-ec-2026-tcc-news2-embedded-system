@@ -11,7 +11,7 @@ private slots:
     void test_countsSamplesWhenWritePointerWrapsFrom31To0();
     void test_equalPointersWithoutOverflowAreAnEmptyFifo();
     void test_equalPointersWithOverflowAreAFullFifo();
-    void test_overflowDoesNotChangeTheCountWhenPointersDiffer();
+    void test_overflowMeansAFullFifoEvenWhenPointersDiffer();
     void test_ignoresBitsAboveThePointerWidth();
 
     void test_assemblesChannelMostSignificantByteFirst();
@@ -46,9 +46,13 @@ void Max30102FifoTest::test_equalPointersWithOverflowAreAFullFifo()
     QCOMPARE(Max30102Fifo::availableSampleCount(0, 0, 0x1F), Max30102Fifo::Depth);
 }
 
-void Max30102FifoTest::test_overflowDoesNotChangeTheCountWhenPointersDiffer()
+void Max30102FifoTest::test_overflowMeansAFullFifoEvenWhenPointersDiffer()
 {
-    QCOMPARE(Max30102Fifo::availableSampleCount(9, 5, 3), 4);
+    // Visto no equipamento depois de a leitura atrasar mais de 320 ms: FIFO_RD_PTR 0x16,
+    // FIFO_WR_PTR 0x18, OVF_COUNTER 3. A FIFO está cheia e os ponteiros já deram a volta;
+    // ler só as 2 amostras da diferença deixava a FIFO cheia para sempre.
+    QCOMPARE(Max30102Fifo::availableSampleCount(0x18, 0x16, 3), Max30102Fifo::Depth);
+    QCOMPARE(Max30102Fifo::availableSampleCount(9, 5, 1), Max30102Fifo::Depth);
 }
 
 void Max30102FifoTest::test_ignoresBitsAboveThePointerWidth()
