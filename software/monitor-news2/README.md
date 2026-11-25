@@ -32,6 +32,14 @@ ppg-pipeline (FC) e a média de cada 4 (25 Hz) ao `PpgProcessor`. As amostras qu
 chip descarta com a FIFO cheia são contadas (aviso no log e coluna `amostras_perdidas` do
 traço).
 
+A leitura e o cálculo rodam na thread `max30102` (`Max30102Acquisition`), separada da thread da
+interface; a `Max30102VitalSignsSource` só repassa os sinais para o `MonitorController`. A FIFO
+do chip guarda 320 ms de amostras, e travamentos da interface (carga do QML, captura de tela)
+não atrasam mais a leitura. Na thread de aquisição, o pior atraso é uma janela da FC do pipeline
+(~20 ms na Pi 3). As curvas passam da aquisição para a tela pelo `LiveSignalBuffer`, protegido por
+mutex. Se a FIFO transbordar mesmo assim, ela é lida inteira na leitura seguinte
+(`Max30102Fifo::availableSampleCount`).
+
 A escolha do i2c-dev está registrada no estudo comparativo i2c-dev × driver IIO do kernel, em
 `../bringup/max30102/estudo-comparativo`. O roteiro para validar a leitura a 100 Hz no
 equipamento está em `../bringup/max30102/TESTE_I2CDEV_100HZ.md`.

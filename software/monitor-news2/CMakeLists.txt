@@ -60,6 +60,8 @@ if(MONITOR_NEWS2_HARDWARE)
     target_sources(monitor_core PRIVATE
         src/sensors/Max30102.h
         src/sensors/Max30102.cpp
+        src/sensors/Max30102Acquisition.h
+        src/sensors/Max30102Acquisition.cpp
         src/sensors/Max30102VitalSignsSource.h
         src/sensors/Max30102VitalSignsSource.cpp
     )
@@ -144,3 +146,4 @@ add_monitor_test(tst_pipelinevitalsestimator)
 add_monitor_test(tst_ds18b20thermometer)
 add_monitor_test(tst_max30102fifo)
 add_monitor_test(tst_ppgdecimator)
+add_monitor_test(tst_livesignalbuffer)

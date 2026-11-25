@@ -25,17 +25,38 @@ LiveSignalBuffer::LiveSignalBuffer(int capacity)
 
 void LiveSignalBuffer::configure(double sampleRateHz)
 {
+    const std::lock_guard lock(m_mutex);
     m_sampleRateHz = sampleRateHz;
 }
 
 void LiveSignalBuffer::append(double normalizedValue)
 {
+    const std::lock_guard lock(m_mutex);
     m_samples[m_writtenCount % int64_t(m_samples.size())] = normalizedValue;
     ++m_writtenCount;
 }
 
+bool LiveSignalBuffer::hasData() const
+{
+    const std::lock_guard lock(m_mutex);
+    return m_writtenCount > 0;
+}
+
+double LiveSignalBuffer::sampleRateHz() const
+{
+    const std::lock_guard lock(m_mutex);
+    return m_sampleRateHz;
+}
+
+int64_t LiveSignalBuffer::writtenCount() const
+{
+    const std::lock_guard lock(m_mutex);
+    return m_writtenCount;
+}
+
 double LiveSignalBuffer::valueAt(double absoluteIndex) const
 {
+    const std::lock_guard lock(m_mutex);
     if(m_writtenCount == 0)
     {
         return 0.5;
