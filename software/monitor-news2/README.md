@@ -28,7 +28,7 @@ O app configura o chip e lê a FIFO pela `/dev/i2c-1` (i2c-dev, em espaço de us
 40 ms; o pino INT do sensor não é usado. Nenhum driver do kernel ocupa o endereço 0x57: a imagem
 não declara o sensor no device tree e não tem o módulo `max30102`. O chip fica em 400 Hz com
 média de 4 na FIFO, ou seja, 100 amostras/s. O app entrega essas amostras sem alteração ao
-ppg-pipeline no modo `refined` e a média de cada 4 (25 Hz) ao `PpgProcessor`. As amostras que o
+ppg-pipeline (FC) e a média de cada 4 (25 Hz) ao `PpgProcessor`. As amostras que o
 chip descarta com a FIFO cheia são contadas (aviso no log e coluna `amostras_perdidas` do
 traço).
 
@@ -36,33 +36,25 @@ A escolha do i2c-dev está registrada no estudo comparativo i2c-dev × driver II
 `../bringup/max30102/estudo-comparativo`. O roteiro para validar a leitura a 100 Hz no
 equipamento está em `../bringup/max30102/TESTE_I2CDEV_100HZ.md`.
 
-O cálculo de FC, SpO₂ e FR também é escolhido na compilação, com
-`-DMONITOR_NEWS2_PPG_ALGORITHM` (no Buildroot, opção "cálculo de FC/SpO2/FR" do pacote):
+Cada parâmetro vem do método que se saiu melhor na comparação na BIDMC e no sensor real
+(`../../comparativo.md`, `../ppg-pipeline/scripts/comparison`):
 
-- `hybrid` (padrão): FC e SpO₂ pelo método do `../ppg-pipeline` (MSPTD), FR pelo `PpgProcessor`.
-- `pipeline`: os três pelo `../ppg-pipeline` (FR pelo Smart Fusion de Karlen).
-- `processor`: os três pelo `PpgProcessor` deste app.
-- `refined` (padrão da imagem do Buildroot): SpO₂ e FR pelo
-  `PpgProcessor`; a FC começa pelo `PpgProcessor` (~5 s) e passa a vir do `../ppg-pipeline`
-  sobre as amostras de 100 Hz do sensor, sem a média de 4, assim que houver 30 s de sinal
-  (~35 s). Na BIDMC a FC
-  do pipeline erra 0,57 bpm a 125 Hz contra 1,49 bpm a 25 Hz.
+- **FC**: começa pelo `PpgProcessor` (~5 s) e passa a vir do `../ppg-pipeline` (MSPTD) sobre as
+  amostras de 100 Hz do sensor, sem a média de 4, assim que houver 30 s de sinal (~35 s). Na
+  BIDMC a FC do pipeline erra 0,57 bpm a 125 Hz contra 1,49 bpm a 25 Hz e 3,21 bpm do
+  `PpgProcessor`.
+- **SpO₂, FR, contato do dedo e curvas**: `PpgProcessor`, a 25 Hz. Ele erra menos a FR e não
+  confunde as ondas de Mayer (~6–7 irpm) com respiração no sensor real.
 
-Em todos os modos, FC e FR são corrigidas pela taxa real do sensor, medida depois de 20 s de
-leitura (o oscilador do MAX30102 fica ~1% abaixo da taxa nominal).
+FC e FR são corrigidas pela taxa real do sensor, medida depois de 20 s de leitura (o oscilador
+do MAX30102 fica ~1% abaixo da taxa nominal).
 
-O contato do dedo e as curvas da tela são sempre do `PpgProcessor`. O padrão segue a comparação
-na BIDMC (`../ppg-pipeline/scripts/comparison`): o pipeline erra menos a FC, e o `PpgProcessor`
-erra menos a FR e não confunde as ondas de Mayer (~6–7 irpm) com respiração no sensor real.
-
-- Sem dedo, as linhas ficam em "AGUARDANDO DEDO", sem alarme. Com o dedo, as curvas de FC e
-  SpO₂ passam a mostrar o PPG real e a de FR a respiração extraída do PPG.
-- Tempo até a primeira leitura com o dedo parado: no `hybrid` (padrão), FC e SpO₂ em ~35 s e FR
-  em ~40–45 s; no `processor`, FC em ~5 s e SpO₂ em ~10 s. Até lá, "—". O dedo saindo zera
-  as medidas.
+- Sem dedo, as linhas ficam em "AGUARDANDO DEDO", sem alarme. Com o dedo, a curva de
+  pletismografia passa a mostrar o PPG real e a de FR a respiração extraída do PPG.
+- Tempo até a primeira leitura com o dedo parado: FC em ~5 s (refinada pelo pipeline em ~35 s),
+  SpO₂ em ~10 s e FR em ~30–40 s. Até lá, "—". O dedo saindo zera as medidas.
 - Tirar o dedo depois de ter havido leitura gera o alarme técnico "sem contato".
-- SpO₂ sem calibração clínica: curva empírica da Maxim (RD117) no `processor`, 110 − 25·R no
-  `pipeline`/`hybrid`.
+- SpO₂ sem calibração clínica: curva empírica da Maxim (RD117).
 - A temperatura vem do DS18B20 (1-Wire no GPIO 4, pull-up de 4,7 kΩ), lida a cada 10 s numa
   thread própria (`Ds18b20Thermometer`). Com ela o NEWS2 fecha completo; sem o sensor, a
   temperatura fica "—" e o NEWS2 incompleto.

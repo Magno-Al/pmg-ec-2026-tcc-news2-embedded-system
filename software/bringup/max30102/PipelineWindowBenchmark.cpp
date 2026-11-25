@@ -4,8 +4,8 @@
 // sensor). Sem sensor: o sinal é o PPG sintético dos testes (tests/SyntheticPpg.h).
 //
 // Configurações medidas:
-//   refined: só FC, a 100 Hz (Max30102::FullRateHz), como no modo refined do app;
-//   pipeline: FC, SpO₂ e FR a 25 Hz, como nos modos pipeline e hybrid.
+//   refined: só FC, a 100 Hz (Max30102::FullRateHz), como no app;
+//   pipeline: FC, SpO₂ e FR a 25 Hz, para comparação.
 //
 // Uso: pipeline-window-benchmark [minutos de sinal, padrão 10]
 // Compilar em Release (-O2/-O3 e -DNDEBUG): ver README.md desta pasta.

@@ -5,7 +5,7 @@ Programas de bancada usados para validar o sensor PPG antes e durante a integra�
 | Arquivo | O que faz |
 |---|---|
 | `Max30102HeartRateTest.cpp` | Lê o sensor pela `/dev/i2c-1` e imprime a FC uma vez por segundo (`--raw` imprime o sinal bruto IR,Red). Independente do app. |
-| `PipelineWindowBenchmark.cpp` | Mede o tempo de cálculo de uma janela do `PipelineVitalsEstimator` (FC a 100 Hz, como no modo `refined`, e FC/SpO₂/FR a 25 Hz) sobre PPG sintético. Não usa o sensor. |
+| `PipelineWindowBenchmark.cpp` | Mede o tempo de cálculo de uma janela do `PipelineVitalsEstimator` (FC a 100 Hz, como no app, e FC/SpO₂/FR a 25 Hz) sobre PPG sintético. Não usa o sensor. |
 | `estudo-comparativo/` | Protocolo, scripts e resultados da comparação i2c-dev × driver IIO do kernel, que levou à escolha do i2c-dev. Os scripts rodam sobre o commit `16b4a99` (ver o README do estudo). |
 | `TESTE_I2CDEV_100HZ.md` | Roteiro para validar no equipamento a leitura do sensor a 100 Hz pelo i2c-dev. |
 

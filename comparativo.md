@@ -1,8 +1,10 @@
 # Comparativo: PpgProcessor × ppg-pipeline
 
 Os dois métodos de cálculo de FC, SpO₂ e FR a partir do PPG do MAX30102, como estão no app
-`software/monitor-news2`. A escolha entre eles é feita na compilação
-(`MONITOR_NEWS2_PPG_ALGORITHM`: `processor`, `pipeline` ou `hybrid`).
+`software/monitor-news2`. Durante a comparação, a escolha entre eles era feita na compilação
+(`MONITOR_NEWS2_PPG_ALGORITHM`: `processor`, `pipeline`, `hybrid` ou `refined`). Pelo resultado,
+o app passou a usar uma combinação fixa: FC pelo ppg-pipeline a 100 Hz; SpO₂, FR, contato e
+curvas pelo PpgProcessor.
 
 - **PpgProcessor**: `software/monitor-news2/src/core/PpgProcessor.{h,cpp}`
 - **ppg-pipeline**: `software/ppg-pipeline` (no app, via `PipelineVitalsEstimator`)

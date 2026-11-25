@@ -59,7 +59,7 @@ void Max30102VitalSignsSource::start()
             m_trace = std::make_unique<QTextStream>(m_traceFile.get());
             *m_trace << "tipo,ms,a,b,c,d,e,f,g,h\n"
                      << "# s,ms,red,ir,contato,curva_pleth,curva_resp(;)\n"
-                     << "# p,ms,fc,spo2,fr,fc_processor,fc_refinada,fr_bruta,correcao,"
+                     << "# p,ms,fc,spo2,fr,fc_processor,fc_pipeline,fr_bruta,correcao,"
                         "amostras_perdidas\n";
             m_traceClock.start();
             qInfo().noquote() << "traço em" << tracePath;
@@ -95,12 +95,8 @@ void Max30102VitalSignsSource::openSensor()
 void Max30102VitalSignsSource::poll()
 {
     std::vector<PpgSample> samples;
-#ifdef MONITOR_NEWS2_PPG_REFINED_HEART_RATE
     std::vector<PpgSample> fullRateSamples;
     const bool isHealthy = m_sensor.readAvailableSamples(samples, &fullRateSamples);
-#else
-    const bool isHealthy = m_sensor.readAvailableSamples(samples);
-#endif
     if(!samples.empty())
     {
         m_sinceLastSample.restart();
@@ -122,12 +118,6 @@ void Max30102VitalSignsSource::poll()
         {
             onFingerContactChanged();
         }
-#ifdef MONITOR_NEWS2_PPG_PIPELINE
-        if(m_processor.hasFingerContact())
-        {
-            m_pipeline.addSample(sample);
-        }
-#endif
         if(output.plethysmographyDisplay)
         {
             LiveSignalBuffer::forChannel(LiveSignalBuffer::Channel::Plethysmography)
@@ -154,15 +144,13 @@ void Max30102VitalSignsSource::poll()
         }
     }
 
-#ifdef MONITOR_NEWS2_PPG_REFINED_HEART_RATE
     if(m_processor.hasFingerContact())
     {
         for(const PpgSample& sample : fullRateSamples)
         {
-            m_refinedHeartRate.addSample(sample);
+            m_heartRateEstimator.addSample(sample);
         }
     }
-#endif
 
     if(!isHealthy)
     {
@@ -219,30 +207,18 @@ void Max30102VitalSignsSource::publishReading()
     {
         return;
     }
-#if defined(MONITOR_NEWS2_PPG_HYBRID)
-    const auto& cardiacEstimator = m_pipeline;
-    const auto& respiratoryEstimator = m_processor;
-#elif defined(MONITOR_NEWS2_PPG_PIPELINE)
-    const auto& cardiacEstimator = m_pipeline;
-    const auto& respiratoryEstimator = m_pipeline;
-#else
-    const auto& cardiacEstimator = m_processor;
-    const auto& respiratoryEstimator = m_processor;
-#endif
     std::optional<double> heartRate;
-    if(const auto value = cardiacEstimator.heartRate())
+    if(const auto value = m_processor.heartRate())
     {
         heartRate = *value;
     }
-#ifdef MONITOR_NEWS2_PPG_REFINED_HEART_RATE
     // a FC do pipeline a 100 Hz substitui a do PpgProcessor assim que fecha (~35 s de contato)
-    if(const auto refined = m_refinedHeartRate.preciseHeartRate())
+    if(const auto precise = m_heartRateEstimator.preciseHeartRate())
     {
-        heartRate = refined;
+        heartRate = precise;
     }
-#endif
     std::optional<double> respiratoryRate;
-    if(const auto value = respiratoryEstimator.respiratoryRate())
+    if(const auto value = m_processor.respiratoryRate())
     {
         respiratoryRate = *value;
     }
@@ -257,21 +233,17 @@ void Max30102VitalSignsSource::publishReading()
     }
     emit pulseOximetryMeasured(
         roundedOrZero(heartRate),
-        cardiacEstimator.oxygenSaturation().value_or(0),
+        m_processor.oxygenSaturation().value_or(0),
         roundedOrZero(respiratoryRate)
     );
     if(m_trace)
     {
-#ifdef MONITOR_NEWS2_PPG_REFINED_HEART_RATE
-        const double refined = m_refinedHeartRate.preciseHeartRate().value_or(0.0);
-#else
-        const double refined = 0.0;
-#endif
+        const double precise = m_heartRateEstimator.preciseHeartRate().value_or(0.0);
         *m_trace << "p," << m_traceClock.elapsed() << ',' << roundedOrZero(heartRate) << ','
-                 << cardiacEstimator.oxygenSaturation().value_or(0) << ','
+                 << m_processor.oxygenSaturation().value_or(0) << ','
                  << roundedOrZero(respiratoryRate) << ','
-                 << m_processor.heartRate().value_or(0) << ',' << refined << ','
-                 << respiratoryEstimator.respiratoryRate().value_or(0) << ',' << correction
+                 << m_processor.heartRate().value_or(0) << ',' << precise << ','
+                 << m_processor.respiratoryRate().value_or(0) << ',' << correction
                  << ',' << m_sensor.lostSampleCount() << '\n';
         m_trace->flush();
     }
@@ -280,12 +252,7 @@ void Max30102VitalSignsSource::publishReading()
 void Max30102VitalSignsSource::onFingerContactChanged()
 {
     const bool hasFingerContact = m_processor.hasFingerContact();
-#ifdef MONITOR_NEWS2_PPG_PIPELINE
-    m_pipeline.reset();
-#endif
-#ifdef MONITOR_NEWS2_PPG_REFINED_HEART_RATE
-    m_refinedHeartRate.reset();
-#endif
+    m_heartRateEstimator.reset();
     emit fingerContactChanged(hasFingerContact);
     if(hasFingerContact)
     {

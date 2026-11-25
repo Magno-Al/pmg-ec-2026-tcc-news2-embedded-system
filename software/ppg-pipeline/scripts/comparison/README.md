@@ -1,7 +1,8 @@
 # Comparação na BIDMC: pipeline × PpgProcessor do app
 
-O app `monitor-news2` pode calcular FC, SpO₂ e FR com dois métodos, escolhidos na compilação
-(`MONITOR_NEWS2_PPG_ALGORITHM`):
+Quando esta comparação foi feita, o app `monitor-news2` podia calcular FC, SpO₂ e FR com dois
+métodos, escolhidos na compilação (`MONITOR_NEWS2_PPG_ALGORITHM`, que não existe mais: pelo
+resultado, o app usa a FC do pipeline e a SpO₂/FR do PpgProcessor):
 
 - **pipeline**: o método deste diretório (MSPTD + Smart Fusion de Karlen; ver `../../README.md`);
 - **processor**: o `PpgProcessor` do app (picos com limiar adaptativo; FR pela soma dos espectros

@@ -13,16 +13,17 @@
 
 #include <memory>
 
-// Fonte de sinais vitais real: MAX30102 → PpgProcessor. O chip é lido pela /dev/i2c-1
-// (i2c-dev, em espaço de usuário), consultando a FIFO a cada 40 ms. As curvas vão para os
-// LiveSignalBuffer a cada amostra e FC/SpO₂/FR são publicadas uma vez por segundo, com 0
-// quando ainda não há leitura. MONITOR_NEWS2_PPG_ALGORITHM decide quem calcula:
-// PpgProcessor, PipelineVitalsEstimator, os dois (FC/SpO₂ do pipeline, FR do PpgProcessor) ou
-// o PpgProcessor com a FC refinada pelo pipeline sobre as amostras de 100 Hz do sensor (o
-// sensor entrega 100 Hz e a média de 4, a 25 Hz); o contato do dedo e as curvas são sempre do
-// PpgProcessor. FC e FR são corrigidas pela taxa real do sensor (~1% abaixo da nominal).
-// Amostras perdidas na FIFO do chip vão para o log e para o traço. A temperatura vem do DS18B20
-// (Ds18b20Thermometer), a cada 10 s, independente do dedo.
+// Fonte de sinais vitais real: MAX30102 → PpgProcessor + PipelineVitalsEstimator. O chip é lido
+// pela /dev/i2c-1 (i2c-dev, em espaço de usuário), consultando a FIFO a cada 40 ms. As 100
+// amostras/s do chip vão para o pipeline (MSPTD), que dá a FC; a média de cada 4 (25 Hz) vai
+// para o PpgProcessor, que decide o contato do dedo, desenha as curvas e calcula SpO₂ e FR
+// (e a FC dos primeiros ~35 s, até a janela do pipeline fechar). Escolha pela comparação na
+// BIDMC e no sensor real (comparativo.md): o pipeline erra menos a FC, e o PpgProcessor a FR,
+// sem o falso 6–7 irpm das ondas de Mayer. As curvas vão para os LiveSignalBuffer a cada amostra
+// e FC/SpO₂/FR são publicadas uma vez por segundo, com 0 quando ainda não há leitura. FC e FR são
+// corrigidas pela taxa real do sensor (~1% abaixo da nominal). Amostras perdidas na FIFO do chip
+// vão para o log e para o traço. A temperatura vem do DS18B20 (Ds18b20Thermometer), a cada 10 s,
+// independente do dedo.
 class Max30102VitalSignsSource : public VitalSignsSource
 {
     Q_OBJECT
@@ -44,14 +45,9 @@ private:
     Max30102 m_sensor;
     QElapsedTimer m_sinceLastSample;
     PpgProcessor m_processor;
-#ifdef MONITOR_NEWS2_PPG_PIPELINE
-    PipelineVitalsEstimator m_pipeline;
-#endif
-#ifdef MONITOR_NEWS2_PPG_REFINED_HEART_RATE
-    PipelineVitalsEstimator m_refinedHeartRate{
+    PipelineVitalsEstimator m_heartRateEstimator{
         Max30102::FullRateHz, PipelineVitalsEstimator::Outputs::HeartRateOnly
     };
-#endif
     // último total de amostras perdidas já avisado no log
     uint64_t m_reportedLostSampleCount = 0;
     // depuração: com MONITOR_NEWS2_TRACE=<arquivo>, grava cada amostra de 25 Hz (bruto, contato,

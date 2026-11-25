@@ -8,7 +8,9 @@ config BR2_PACKAGE_MONITOR_NEWS2
 	help
 	  Interface de beira de leito do monitor NEWS2 (Qt 6 + QML).
 	  Instalada em /root/monitor-news2, sem script de init. Le o
-	  MAX30102 pela /dev/i2c-1 (i2c-dev, polling da FIFO a cada 40 ms).
+	  MAX30102 pela /dev/i2c-1 (i2c-dev, polling da FIFO a cada 40 ms):
+	  FC pelo ppg-pipeline a 100 Hz; contato, curvas, SpO2 e FR pelo
+	  PpgProcessor a 25 Hz.
 
 if BR2_PACKAGE_MONITOR_NEWS2
 
@@ -18,31 +20,6 @@ config BR2_PACKAGE_MONITOR_NEWS2_SRCDIR
 	help
 	  Diretorio software/ deste repositorio (SITE_METHOD=local): o app
 	  fica em monitor-news2/ e usa a biblioteca de ppg-pipeline/.
-
-choice
-	prompt "calculo de FC/SpO2/FR"
-	default BR2_PACKAGE_MONITOR_NEWS2_PPG_HYBRID
-	help
-	  Quem calcula os sinais vitais a partir do PPG. Comparacao dos
-	  metodos: software/ppg-pipeline/scripts/comparison.
-
-config BR2_PACKAGE_MONITOR_NEWS2_PPG_HYBRID
-	bool "hibrido (FC/SpO2 do ppg-pipeline, FR do PpgProcessor)"
-
-config BR2_PACKAGE_MONITOR_NEWS2_PPG_PIPELINE
-	bool "ppg-pipeline (MSPTD + Smart Fusion)"
-
-config BR2_PACKAGE_MONITOR_NEWS2_PPG_PROCESSOR
-	bool "PpgProcessor do app"
-
-config BR2_PACKAGE_MONITOR_NEWS2_PPG_REFINED
-	bool "PpgProcessor + FC refinada a 100 Hz pelo ppg-pipeline"
-	help
-	  SpO2 e FR do PpgProcessor; a FC passa a vir do ppg-pipeline
-	  (MSPTD) sobre as amostras de 100 Hz do sensor assim que houver
-	  30 s de sinal.
-
-endchoice
 
 endif
 

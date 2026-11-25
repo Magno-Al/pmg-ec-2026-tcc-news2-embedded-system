@@ -2,7 +2,7 @@
 
 O app lê o MAX30102 pela `/dev/i2c-1` (i2c-dev, `software/monitor-news2/src/sensors/Max30102.cpp`).
 Ele configura o chip a 400 Hz internos, com média de 4 na FIFO, ou seja, 100 amostras/s. As
-amostras de 100 Hz vão para o ppg-pipeline (FC do modo `refined`), e a média de cada 4, a 25 Hz,
+amostras de 100 Hz vão para o ppg-pipeline (FC), e a média de cada 4, a 25 Hz,
 vai para o `PpgProcessor`. O app também conta as amostras que o chip descarta quando a FIFO enche
 (contador de overflow).
 

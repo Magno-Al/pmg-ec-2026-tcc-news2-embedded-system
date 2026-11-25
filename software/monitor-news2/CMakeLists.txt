@@ -7,16 +7,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # ON no Buildroot: lê o MAX30102 (pela /dev/i2c-1, polling) em vez dos dados simulados
 option(MONITOR_NEWS2_HARDWARE "Usa os sensores reais em vez dos mocks" OFF)
-# Quem calcula FC, SpO₂ e FR a partir do PPG: "processor" (PpgProcessor deste app), "pipeline"
-# (método do ../ppg-pipeline: MSPTD + Smart Fusion), "hybrid" (FC e SpO₂ do pipeline, FR do
-# PpgProcessor) ou "refined" (PpgProcessor, com a FC refinada pelo pipeline sobre as amostras de
-# 100 Hz do sensor). Contato e curvas são sempre do
-# PpgProcessor. Comparação na BIDMC e no sensor real (../ppg-pipeline/scripts/comparison): o
-# pipeline erra menos a FC, e o PpgProcessor a FR, sem o falso 6–7 irpm das ondas de Mayer.
-set(MONITOR_NEWS2_PPG_ALGORITHM "hybrid" CACHE STRING
-    "Cálculo de FC/SpO2/FR: processor, pipeline, hybrid ou refined")
-set_property(CACHE MONITOR_NEWS2_PPG_ALGORITHM
-    PROPERTY STRINGS processor pipeline hybrid refined)
 
 add_subdirectory(../ppg-pipeline ppg-pipeline)
 
@@ -65,20 +55,6 @@ add_library(monitor_core STATIC
 )
 target_include_directories(monitor_core PUBLIC src)
 target_link_libraries(monitor_core PUBLIC Qt6::Core ppg_pipeline)
-if(MONITOR_NEWS2_PPG_ALGORITHM STREQUAL "pipeline")
-    target_compile_definitions(monitor_core PUBLIC MONITOR_NEWS2_PPG_PIPELINE)
-elseif(MONITOR_NEWS2_PPG_ALGORITHM STREQUAL "hybrid")
-    target_compile_definitions(monitor_core PUBLIC
-        MONITOR_NEWS2_PPG_PIPELINE
-        MONITOR_NEWS2_PPG_HYBRID
-    )
-elseif(MONITOR_NEWS2_PPG_ALGORITHM STREQUAL "refined")
-    target_compile_definitions(monitor_core PUBLIC MONITOR_NEWS2_PPG_REFINED_HEART_RATE)
-elseif(NOT MONITOR_NEWS2_PPG_ALGORITHM STREQUAL "processor")
-    message(FATAL_ERROR
-        "MONITOR_NEWS2_PPG_ALGORITHM deve ser processor, pipeline, hybrid ou refined")
-endif()
-message(STATUS "FC/SpO2/FR via ${MONITOR_NEWS2_PPG_ALGORITHM}")
 
 if(MONITOR_NEWS2_HARDWARE)
     target_sources(monitor_core PRIVATE
