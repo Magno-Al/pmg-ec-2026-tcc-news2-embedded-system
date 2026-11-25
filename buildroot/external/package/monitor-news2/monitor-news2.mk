@@ -34,4 +34,10 @@ define MONITOR_NEWS2_INSTALL_TARGET_CMDS
 		$(TARGET_DIR)/root/monitor-news2
 endef
 
+# sobe a interface no boot; parar: /etc/init.d/S99monitor-news2 stop
+define MONITOR_NEWS2_INSTALL_INIT_SYSV
+	$(INSTALL) -D -m 0755 $(MONITOR_NEWS2_PKGDIR)/S99monitor-news2 \
+		$(TARGET_DIR)/etc/init.d/S99monitor-news2
+endef
+
 $(eval $(cmake-package))

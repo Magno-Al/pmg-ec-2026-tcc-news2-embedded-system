@@ -67,9 +67,16 @@ do MAX30102 fica ~1% abaixo da taxa nominal).
   thread própria (`Ds18b20Thermometer`). Com ela o NEWS2 fecha completo; sem o sensor, a
   temperatura fica "—" e o NEWS2 incompleto.
 
+### No equipamento
+
+A imagem sobe o app no boot, em tela cheia (`/etc/init.d/S99monitor-news2`), com a saída em
+`/var/log/monitor-news2.log`. Para parar, iniciar de novo ou reiniciar:
+`/etc/init.d/S99monitor-news2 stop|start|restart`.
+
 ### Depuração no equipamento
 
-- `MONITOR_NEWS2_TRACE=/tmp/trace.csv /root/monitor-news2 --fullscreen` grava cada amostra de
+- Com o app parado (`/etc/init.d/S99monitor-news2 stop`):
+  `MONITOR_NEWS2_TRACE=/tmp/trace.csv /root/monitor-news2 --fullscreen` grava cada amostra de
   25 Hz (bruto, contato e valores das curvas) e cada publicação de FC/SpO₂/FR, com as fontes.
 - `kill -USR1 $(pidof monitor-news2)` salva a tela em `/tmp/monitor-news2-<hora>.png`. O eglfs
   desenha direto no vídeo, então não há outro jeito de tirar print.

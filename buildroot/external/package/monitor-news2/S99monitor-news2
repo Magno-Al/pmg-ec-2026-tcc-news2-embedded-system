@@ -1,0 +1,49 @@
+#!/bin/sh
+#
+# Sobe a interface do monitor NEWS2 em tela cheia no boot, depois dos demais servicos.
+# Saida do app em /var/log/monitor-news2.log.
+#
+
+DAEMON=/root/monitor-news2
+PIDFILE=/var/run/monitor-news2.pid
+LOGFILE=/var/log/monitor-news2.log
+
+# plataforma do Qt (eglfs/KMS) e locale, os mesmos do login
+set -a
+[ -r /etc/default/news2-env ] && . /etc/default/news2-env
+set +a
+export HOME=/root
+
+start() {
+    printf 'Starting monitor-news2: '
+    start-stop-daemon -S -q -b -m -p "$PIDFILE" -x /bin/sh -- \
+        -c "exec $DAEMON --fullscreen >> $LOGFILE 2>&1"
+    [ $? = 0 ] && echo "OK" || echo "FAIL"
+}
+
+stop() {
+    printf 'Stopping monitor-news2: '
+    # SIGTERM: o app encerra o laco de eventos e desliga os LEDs do sensor
+    start-stop-daemon -K -q -p "$PIDFILE"
+    status=$?
+    rm -f "$PIDFILE"
+    [ $status = 0 ] && echo "OK" || echo "FAIL"
+}
+
+case "$1" in
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    restart|reload)
+        stop
+        sleep 1
+        start
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart}"
+        exit 1
+        ;;
+esac

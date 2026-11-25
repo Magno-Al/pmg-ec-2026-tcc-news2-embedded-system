@@ -7,7 +7,8 @@ config BR2_PACKAGE_MONITOR_NEWS2
 	select BR2_PACKAGE_QT6DECLARATIVE_QUICK
 	help
 	  Interface de beira de leito do monitor NEWS2 (Qt 6 + QML).
-	  Instalada em /root/monitor-news2, sem script de init. Le o
+	  Instalada em /root/monitor-news2 e iniciada no boot em tela
+	  cheia (/etc/init.d/S99monitor-news2). Le o
 	  MAX30102 pela /dev/i2c-1 (i2c-dev, polling da FIFO a cada 40 ms):
 	  FC pelo ppg-pipeline a 100 Hz; contato, curvas, SpO2 e FR pelo
 	  PpgProcessor a 25 Hz.

@@ -154,7 +154,7 @@ BR2_PACKAGE_WIRELESS_REGDB=y
 BR2_PACKAGE_IW=y
 
 # ---- [15] Aplicacao ------------------------------------------------------
-# instalada em /root/monitor-news2, sem script de init (nao sobe no boot)
+# instalada em /root/monitor-news2 e iniciada no boot (S99monitor-news2)
 BR2_PACKAGE_MONITOR_NEWS2=y
 
 # ---- [16] Imagem -----------------------------------------------------------
