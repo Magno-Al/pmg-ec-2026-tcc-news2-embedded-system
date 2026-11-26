@@ -13,8 +13,8 @@
       1
     ],
     "janela_passada_horas": 1,
-    "horizonte_horas": 3,
-    "alvo": "Y = 1 se NEWS2 >= 5 em alguma das próximas 3h (t+1 até t+3)"
+    "horizonte_horas": 6,
+    "alvo": "Y = 1 se NEWS2 >= 5 em alguma das próximas 6h (t+1 até t+6)"
   },
   "features": [
     {

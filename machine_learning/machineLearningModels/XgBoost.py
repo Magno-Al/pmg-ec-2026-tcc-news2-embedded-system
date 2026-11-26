@@ -7,12 +7,6 @@ from sklearn.model_selection import StratifiedGroupKFold
 from machineLearningModels.evaluation import (evaluateBySubset, chooseThreshold,
                                               confusionMatrixReport)
 
-# TODO (voltaremos nisso): o early stopping usa o conjunto de TESTE como eval_set (ver train()).
-#  Isso faz o teste influenciar a escolha do nº de árvores => métricas levemente otimistas.
-#  Correção: usar o conjunto de VALIDAÇÃO de splitByPatient() no eval_set e subir o teto de
-#  n_estimators (com teto 2000, o early stopping escolheu ~560 árvores). Na validação cruzada,
-#  usar uma validação interna por paciente em cada fold p/ o early stopping.
-
 #hiperparâmetros obtidos no fine-tuning (FineTuning/RandomSearch.py) — usados no train() e na validação cruzada
 XGB_PARAMS = dict(
     n_estimators=756,
@@ -50,7 +44,8 @@ class TrainModel:
         )
         self.model.fit(
             self.X_train, self.y_train,
-            eval_set=[(self.X_test, self.y_test)],  # TODO: trocar pelo conjunto de validação
+            #VALIDAÇÃO (nunca o teste): se o early stopping for reativado, é ela que decide o nº de árvores
+            eval_set=[(self.X_val, self.y_val)],
             verbose=False,
         )
         print(f"Árvores treinadas: {self.model.get_booster().num_boosted_rounds()}")
