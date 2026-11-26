@@ -1,0 +1,78 @@
+{
+  "model_file": "xgb_news2.json",
+  "feature_names": [
+    "Resp",
+    "O2Sat",
+    "SBP",
+    "HR",
+    "Temp",
+    "FiO2",
+    "Resp_lag1",
+    "Resp_delta",
+    "O2Sat_lag1",
+    "O2Sat_delta",
+    "SBP_lag1",
+    "SBP_delta",
+    "HR_lag1",
+    "HR_delta",
+    "Temp_lag1",
+    "Temp_delta",
+    "FiO2_lag1",
+    "FiO2_delta",
+    "news2",
+    "news2_lag1",
+    "news2_delta"
+  ],
+  "threshold": 0.45851194858551025,
+  "target_recall": 0.8,
+  "horizon_hours": 6,
+  "news2_risk_threshold": 5,
+  "plausible_ranges": {
+    "Resp": [
+      4,
+      60
+    ],
+    "O2Sat": [
+      70,
+      100
+    ],
+    "SBP": [
+      60,
+      270
+    ],
+    "HR": [
+      20,
+      250
+    ],
+    "Temp": [
+      25,
+      45
+    ],
+    "FiO2": [
+      0.21,
+      1.0
+    ]
+  },
+  "room_air_fio2": 0.21,
+  "fio2_ffill_limit": 4,
+  "xgb_params": {
+    "n_estimators": 756,
+    "max_depth": 4,
+    "learning_rate": 0.038,
+    "subsample": 0.63,
+    "colsample_bytree": 0.61,
+    "gamma": 4.21,
+    "min_child_weight": 4,
+    "reg_alpha": 0.24,
+    "reg_lambda": 6.97,
+    "eval_metric": "aucpr",
+    "random_state": 42
+  },
+  "scale_pos_weight": 1.5614615998909254,
+  "test_metrics": {
+    "auprc": 0.8384869276903452,
+    "auroc": 0.8756504546298364
+  },
+  "xgboost_version": "3.3.0",
+  "exported_at": "2026-11-26T08:40:48"
+}

@@ -1,12 +1,11 @@
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import (average_precision_score, roc_auc_score,
-                             confusion_matrix, classification_report,
-                             brier_score_loss)
+from sklearn.metrics import average_precision_score, roc_auc_score, brier_score_loss
 from sklearn.model_selection import StratifiedGroupKFold
 
-from machineLearningModels.evaluation import evaluateBySubset
+from machineLearningModels.evaluation import (evaluateBySubset, chooseThreshold,
+                                              confusionMatrixReport)
 
 RF_PARAMS = dict(
     n_estimators=134,
@@ -41,7 +40,7 @@ class TrainModel:
         print(f"AUPRC validação: {average_precision_score(self.y_val, proba_val):.4f}")
         return self.model
 
-    def evaluate(self):
+    def evaluate(self, threshold=None):
         # probabilidades (não o 0/1 cru) — é o que importa p/ early-warning
         proba = self.model.predict_proba(self.X_test)[:, 1]
 
@@ -55,15 +54,15 @@ class TrainModel:
         print(f"AUROC:{auroc:.4f}")
         print(f"Brier:{brier:.4f}(menor = melhor calibrado)")
 
-        # limiar padrão 0.5 só para visualizar a matriz — NÃO é o limiar final
-        pred = (proba >= 0.5).astype(int)
-        print("\nMatriz de confusão (limiar 0.5):")
-        print(confusion_matrix(self.y_test, pred))
-        print("\n", classification_report(self.y_test, pred, digits=3))
+        # limiar escolhido na VALIDAÇÃO (sensibilidade-alvo), nunca no teste
+        if threshold is None:
+            threshold = chooseThreshold(self.model.predict_proba(self.X_val)[:, 1], self.y_val)
+        cm_table = confusionMatrixReport(proba, self.X_test, self.y_test, threshold, "RandomForest")
 
         subsets = evaluateBySubset(proba, self.X_test, self.y_test)
 
-        return {"auprc": auprc, "auroc": auroc, "brier": brier, **subsets}
+        return {"auprc": auprc, "auroc": auroc, "brier": brier,
+                "limiar": threshold, "matriz_confusao": cm_table, **subsets}
 
     def featureImportance(self, n_repeats=5, sample_size=50000, top=15):
         '''

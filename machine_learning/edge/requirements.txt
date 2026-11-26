@@ -1,0 +1,5 @@
+# Inferência na borda (Raspberry Pi). Instalação: pip install -r requirements.txt
+# Requer Raspberry Pi OS 64-bit (aarch64) e Python >= 3.10: não há wheel do xgboost para 32-bit.
+# O xgboost precisa ser a MESMA versão usada no treino (ver "xgboost_version" em model/metadata.json).
+numpy
+xgboost==3.3.0

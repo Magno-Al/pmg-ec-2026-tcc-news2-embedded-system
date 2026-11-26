@@ -14,6 +14,8 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import average_precision_score, roc_auc_score
 from sklearn.model_selection import ParameterSampler
 
+from machineLearningModels.SVM import buildSVM
+
 N_ITER = 30  #nº de combinações sorteadas por modelo (mesmo orçamento p/ os dois => comparação justa)
 SAMPLE_FRAC = 0.3  #fração das linhas de treino usada na busca (acelera; o modelo final usa 100%)
 RANDOM_STATE = 42
@@ -53,6 +55,12 @@ RF_FIXED = dict(
     random_state=RANDOM_STATE,
 )
 
+#espaço de busca do SVM (n_components fica fixo em SVM.py: é ele que limita a memória)
+SVM_SEARCH_SPACE = {
+    "gamma": loguniform(1e-3, 0.1),
+    "C": loguniform(1e-3, 10),
+}
+
 METRIC_COLUMNS = ["auprc_val", "auroc_val", "tempo_s"]
 
 
@@ -87,6 +95,14 @@ class RandomSearch:
 
         return self.__search("RandomForest", RF_SEARCH_SPACE, fit, n_iter)
 
+    def searchSVM(self, n_iter=N_ITER):
+        def fit(params):
+            model = buildSVM(**params)
+            model.fit(self.X_train, self.y_train)
+            return model, {}
+
+        return self.__search("SVM", SVM_SEARCH_SPACE, fit, n_iter)
+
     def __search(self, name, search_space, fit, n_iter):
         sampler = ParameterSampler(search_space, n_iter=n_iter, random_state=RANDOM_STATE)
         rows = []
@@ -97,7 +113,11 @@ class RandomSearch:
             start = time.time()
             model, extra = fit(params)
 
-            proba = model.predict_proba(self.X_val)[:, 1]
+            #o SVM não tem predict_proba: a distância à margem basta, pois AUPRC e AUROC só usam a ordenação
+            if hasattr(model, "predict_proba"):
+                proba = model.predict_proba(self.X_val)[:, 1]
+            else:
+                proba = model.decision_function(self.X_val)
             row = {
                 **params,
                 **extra,
