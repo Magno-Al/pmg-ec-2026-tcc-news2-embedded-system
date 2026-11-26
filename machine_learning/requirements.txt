@@ -1,6 +1,11 @@
+# Ambiente de treino/avaliação (PC). Instalação: pip install -r requirements.txt
+# Versões testadas com Python 3.12 no Windows.
 numpy==2.5.0
 pandas==3.0.3
 pyarrow==24.0.0
 scikit-learn==1.9.0
 scipy==1.18.0
 xgboost==3.3.0
+
+# Opcional: gera a figura da matriz de confusão em evaluation.py
+# matplotlib
